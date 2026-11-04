@@ -1,0 +1,13 @@
+{
+  "version": "0.1.0",
+  "files": {
+    "user.schema.json": {
+      "source": "contracts/json-schema/user.schema.json",
+      "sha256": "790b2d7e76055c0eef685ab69ead49ef394b07553f086a3f22b91fd65f3c9965"
+    },
+    "user.openapi.json": {
+      "source": "contracts/openapi/user.v1.json",
+      "sha256": "4854fb809c55abab868f154f32a0426d2f5ae889d09c154eb7dc83eb26bc4335"
+    }
+  }
+}

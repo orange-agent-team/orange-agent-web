@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.orange-agent.invalid/user/0.1.0",
+  "$defs": {
+    "UserSession": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "personal_owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "csrf_token": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 256
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "session_id",
+        "user_id",
+        "personal_owner_id",
+        "csrf_token",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "CreateOrganization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "member_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "name",
+        "member_limit"
+      ],
+      "additionalProperties": false
+    },
+    "UserOrganization": {
+      "type": "object",
+      "properties": {
+        "organization_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member",
+            "billing",
+            "viewer"
+          ]
+        },
+        "member_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "maxLength": 19
+        },
+        "member_user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "organization_id",
+        "name",
+        "role",
+        "member_limit",
+        "policy_version",
+        "member_user_id"
+      ],
+      "additionalProperties": false
+    },
+    "UserOrganizationList": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/UserOrganization"
+          }
+        },
+        "next_cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "data",
+        "user_id"
+      ],
+      "additionalProperties": false
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "CSRF_INVALID",
+            "AUTH_CONTEXT_REQUIRED",
+            "VALIDATION_ERROR",
+            "SERVICE_UNAVAILABLE",
+            "NOT_FOUND",
+            "IDEMPOTENCY_CONFLICT",
+            "VERSION_CONFLICT",
+            "CAPACITY_EXCEEDED",
+            "LAST_OWNER_REQUIRED"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "retry_class": {
+          "type": "string",
+          "enum": [
+            "never",
+            "after_reauth",
+            "query_original"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "request_id",
+        "retry_class"
+      ],
+      "additionalProperties": false
+    },
+    "SessionRevocationContext": {
+      "type": "object",
+      "properties": {
+        "csrf_token": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "csrf_token"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
