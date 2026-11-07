@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.invalid/contracts/account.v1.schema.json",
+  "$defs": {
+    "CreateBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_id",
+        "limit"
+      ],
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        }
+      }
+    },
+    "BudgetView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_budget_id",
+        "scope_id",
+        "limit",
+        "spent",
+        "reserved",
+        "status"
+      ],
+      "properties": {
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "limit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "spent": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "reserved": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "closing",
+            "closed"
+          ]
+        }
+      }
+    },
+    "WalletView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "user_id",
+        "owner_id",
+        "gift",
+        "earned",
+        "purchased",
+        "reserved_gift",
+        "reserved_earned",
+        "reserved_purchased",
+        "pending_earned"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "gift": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "earned": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "purchased": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "reserved_gift": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "reserved_earned": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "reserved_purchased": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "pending_earned": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        }
+      }
+    },
+    "PersonalBudgetList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "user_id",
+        "owner_id",
+        "data",
+        "next_cursor"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/BudgetView"
+          }
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "request_id",
+        "retry_class"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "retry_class": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

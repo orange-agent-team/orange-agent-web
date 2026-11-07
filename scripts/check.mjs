@@ -8,6 +8,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cwd = path.join(root, 'apps/web');
 const contracts = path.join(root, 'docs/contracts');
 const snapshot = JSON.parse(readFileSync(path.join(contracts, 'snapshot.json'), 'utf8'));
+if (snapshot.source_repository !== 'orange-agent-server' || !/^[0-9a-f]{40}$/.test(snapshot.source_commit)) throw new Error('Committed contract source identity required');
 for (const [name, entry] of Object.entries(snapshot.files)) {
   const digest = createHash('sha256').update(readFileSync(path.join(contracts, name))).digest('hex');
   if (digest !== entry.sha256) throw new Error(`Contract snapshot changed: ${name}`);

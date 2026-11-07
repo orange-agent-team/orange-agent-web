@@ -29,3 +29,7 @@ python3 scripts/check-user-identity.py --web-repo ../orange-agent-web
 ## 未完成范围
 
 云Host/完整对话、模型与工具执行、审批、工作区、成果、钱包/报价/支付、团队邀请/成员编辑/资源共享界面以及G4—G6仍未实现。相应API不会在当前用户服务中返回假成功；现有组织角色不等于可以读取私有内容。当前账户由真实已验证issuer/subject首次登录建立独立零余额个人空间，未开放自建身份提供方、匿名注册或自动授予平台角色。
+# 个人账户增量
+
+已新增`/account`及固定server b76218e契约：精确积分/钱包/个人预算、持久原创建意图、15秒有界等待和撤权清屏。正式源码11项客户端测试、构建、3项Chrome/API替身、4项真实Keycloak/HTTPS/Rust/用户流程及关联真库检查通过，证据分别归WEB-ACCOUNT-001、WEB-CORE-001、USER-OIDC-001。创建预算不充值；完整模型任务、团队预算治理、支付和Web Agent仍待实现。详细边界见[个人账户页面](personal-account.md)。以下较早记录保留原时点范围。
+

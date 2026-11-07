@@ -1,0 +1,421 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orange personal account API",
+    "version": "0.1.0",
+    "description": "Owner comes exclusively from the current user session. Budget creation does not add credits or reserve funds. Pending earned credits are not spendable. Team budget governance and real payments are separate capabilities."
+  },
+  "paths": {
+    "/api/v1/account/wallet": {
+      "get": {
+        "operationId": "personalWallet",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current personal account metadata, not a spend permit or payment confirmation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/budgets": {
+      "get": {
+        "operationId": "listPersonalBudgets",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current personal account metadata, not a spend permit or payment confirmation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalBudgetList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPersonalBudget",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current personal account metadata, not a spend permit or payment confirmation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBudget"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/budgets/{root}": {
+      "get": {
+        "operationId": "personalBudget",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "root",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current personal account metadata, not a spend permit or payment confirmation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "UserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-orange-user"
+      }
+    },
+    "schemas": {
+      "CreateBudget": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope_id",
+          "limit"
+        ],
+        "properties": {
+          "scope_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          }
+        }
+      },
+      "BudgetView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "root_budget_id",
+          "scope_id",
+          "limit",
+          "spent",
+          "reserved",
+          "status"
+        ],
+        "properties": {
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "scope_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "spent": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "reserved": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "closing",
+              "closed"
+            ]
+          }
+        }
+      },
+      "WalletView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "owner_id",
+          "gift",
+          "earned",
+          "purchased",
+          "reserved_gift",
+          "reserved_earned",
+          "reserved_purchased",
+          "pending_earned"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "gift": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "earned": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "purchased": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "reserved_gift": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "reserved_earned": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "reserved_purchased": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          },
+          "pending_earned": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+          }
+        }
+      },
+      "PersonalBudgetList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "owner_id",
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/BudgetView"
+            }
+          },
+          "next_cursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "retry_class"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retry_class": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -431,3 +431,7 @@ button:focus-visible,a:focus-visible {
     animation:none
   }
 }
+.account-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:24px 0 32px}.account-summary strong{font-size:clamp(16px,1.5vw,22px);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}.budget-list{display:grid;gap:14px}.budget-values{display:flex;gap:24px;flex-wrap:wrap;margin-top:16px}.budget-values span{display:grid;gap:4px;color:#626b66}.budget-values b{color:#263c32;font-variant-numeric:tabular-nums}@media(max-width:760px){.account-summary{grid-template-columns:1fr}.budget-values{gap:16px}.portal-header nav{flex-wrap:wrap}}
+
+.portal-header nav{gap:20px}.portal-header nav a{border-bottom-color:transparent}.portal-header nav a[aria-current="page"]{border-bottom-color:#bb481d}
+@media(max-width:650px){.portal-header{display:grid;grid-template-columns:1fr auto;height:auto;min-height:72px;column-gap:18px;row-gap:0;padding-top:16px}.portal-header .brand{grid-column:1;grid-row:1}.portal-header .account{grid-column:2;grid-row:1}.portal-header nav{grid-column:1/-1;grid-row:2;height:44px;flex-wrap:nowrap}.portal-header nav a{height:44px}}

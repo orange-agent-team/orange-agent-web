@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { decode } from '../../src/api/contracts';
+import { decodeAccount, formatCredits } from '../../src/api/accounts';
 const path = process.env.ORANGE_IDENTITY_FIXTURE;
 const database = process.env.ORANGE_TEST_DATABASE_URL_FILE;
 if (!path || !database) throw new Error('Actual local identity and database required; no mock fallback');
@@ -84,4 +85,29 @@ test('an inactive account can terminate its own browser session without restorin
     active(session.user_id, true);
     expect((await page.request.get('/api/v1/session')).status()).toBe(401);
   } finally { active(session.user_id, true); }
+});
+
+test('real user budget page creates one exact personal root without adding credits', async ({ page, browser }, info) => {
+  const session = await login(page);
+  const beforeResponse = await page.request.get('/api/v1/account/wallet'); expect(beforeResponse.status()).toBe(200);
+  const before = decodeAccount('Wallet', await beforeResponse.json()); expect(before.user_id).toBe(session.user_id); expect(before.owner_id).toBe(session.personal_owner_id);
+  await page.getByRole('link', { name: '积分与预算', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '积分与预算', exact: true })).toBeVisible();
+  await expect(page.getByTestId('available-credits')).toHaveText(formatCredits(BigInt(before.gift)+BigInt(before.earned)+BigInt(before.purchased)));
+  await page.getByRole('textbox', { name: '预算上限（积分）' }).fill('2.500001');
+  const mutation = page.waitForRequest(r => new URL(r.url()).pathname === '/api/v1/account/budgets' && r.method() === 'POST');
+  await page.getByRole('button', { name: '创建预算', exact: true }).click();
+  const request = await mutation; const response = await request.response(); expect(response?.status()).toBe(200);
+  const created = decodeAccount('Budget', await response!.json()); expect(created.limit).toBe('2500001'); expect(created.scope_id).toBe(request.postDataJSON().scope_id);
+  await expect(page.getByTestId('budget-created')).toBeVisible();
+  const repeat = await page.request.post('/api/v1/account/budgets', { data: request.postDataJSON(), headers: { Origin: origin, 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': request.headers()['idempotency-key'] } });
+  expect(repeat.status()).toBe(200); expect(decodeAccount('Budget',await repeat.json()).root_budget_id).toBe(created.root_budget_id);
+  const after = decodeAccount('Wallet',await (await page.request.get('/api/v1/account/wallet')).json()); expect(after).toEqual(before);
+  const other = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true });
+  try { const otherPage = await other.newPage(); await login(otherPage,1); expect((await otherPage.request.get('/api/v1/account/budgets/'+created.root_budget_id)).status()).toBe(404); }
+  finally { await other.close(); }
+  // Dedicated development principal only; no password/OTP/cookie capture.
+  await page.screenshot({ path: info.outputPath('account-real-identity.png'), fullPage: true });
+  await page.getByRole('button', { name: '退出', exact: true }).click();
+  await expect(page.getByText('已退出当前会话。', { exact: true })).toBeVisible();
 });

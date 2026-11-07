@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, Route, Routes, Link } from 'react-router';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Navigate, Route, Routes, Link, NavLink } from 'react-router';
 import { QueryCache, QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, ConfigProvider, Empty, Form, Input, Spin, Tag, Typography } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { UserClient, ApiFailure } from '../api/client';
 import { authorityKey, type UserSession, type Organization, type CreateOrganization, type TeamRole } from '../api/contracts';
 const api = new UserClient();
+const Account = lazy(() => import('./Account'));
 const roles: Record<TeamRole, string> = { owner: '所有者', admin: '管理员', member: '成员', billing: '账务', viewer: '只读成员' };
 export default function Portal({ session, invalidate, logout }: { session: UserSession; invalidate: () => void; logout: () => void }) {
   const invalidateRef = useRef(invalidate); invalidateRef.current = invalidate;
@@ -16,8 +17,8 @@ export default function Portal({ session, invalidate, logout }: { session: UserS
   useEffect(() => () => { void client.cancelQueries(); client.clear(); }, [client]);
   return <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: '#bb481d', borderRadius: 10, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' } }}><QueryClientProvider client={client}>
     <div className="portal"><header className="portal-header"><Link to="/organizations" className="brand"><span className="brand-mark">o</span>orange</Link>
-      <nav aria-label="用户导航"><Link to="/organizations">组织空间</Link></nav><div className="account"><span className="account-dot" />用户身份已验证<Button aria-label="退出" onClick={logout}>退出</Button></div></header>
-      <main className="portal-main"><Routes><Route path="/organizations" element={<Organizations session={session} invalidate={invalidate} />} /><Route path="*" element={<Navigate to="/organizations" replace />} /></Routes></main>
+      <nav aria-label="用户导航"><NavLink to="/organizations">组织空间</NavLink><NavLink to="/account">积分与预算</NavLink></nav><div className="account"><span className="account-dot" />用户身份已验证<Button aria-label="退出" onClick={logout}>退出</Button></div></header>
+      <main className="portal-main"><Routes><Route path="/organizations" element={<Organizations session={session} invalidate={invalidate} />} /><Route path="/account" element={<Suspense fallback={<Spin />}><Account session={session} invalidate={invalidate} /></Suspense>} /><Route path="*" element={<Navigate to="/organizations" replace />} /></Routes></main>
       <footer className="portal-footer"><span>个人空间 · {session.personal_owner_id.slice(0, 8)}</span><span>组织成员身份不授予平台管理权限</span></footer>
     </div>
   </QueryClientProvider></ConfigProvider>;

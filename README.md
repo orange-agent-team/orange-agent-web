@@ -1,5 +1,7 @@
 # Orange Agent Web
 
+最新增量：已加入[个人积分与预算页面](docs/personal-account.md)，固定消费服务端`b76218e`的契约。正式源码11项客户端、3项Chrome替身、4项真实OIDC/用户流程及关联真库检查通过。完整模型任务和Web Agent仍未完成。
+
 组织更新（2026-11-04）：E10只负责用户控制台与完整Web Agent。Admin已独立为E11 orange-agent-admin；管理专属文档与契约快照已迁入该目录，本仓库旧入口仅保留导航。
 
 日期：2026-11-04。已有React/TypeScript用户应用、独立OIDC登录/会话、组织创建与列表；已运行真实本机Keycloak/PostgreSQL/HTTPS/Chrome验证。完整Web Agent、云工作区、模型市场和支付仍待实现，不是完整候选发布版。
@@ -10,6 +12,7 @@ E10是独立用户Web应用。Admin独立构建/部署/版本/会话，两个仓
 
 - [Web架构与技术基线](docs/architecture.md)：用户端、云Host、管理端及会话边界。
 - [当前实现与运行](docs/implementation-status.md)：精确构建、真实身份联调与剩余范围。
+- [个人积分与预算](docs/personal-account.md)：精确金额、原创建意图恢复、当前身份和独立验证边界。
 - [用户接口快照](docs/contracts/README.md)：服务端权威契约与客户端固定版本。
 - [Admin Panel功能与权限](../orange-agent-admin/docs/admin-panel.md)：七种平台角色、功能模块、批准和执行。
 - [管理端验收与后续扩展](../orange-agent-admin/docs/admin-acceptance.md)：阶段切片、失败场景和发布门槛。
