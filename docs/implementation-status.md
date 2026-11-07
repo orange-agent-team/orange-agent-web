@@ -1,6 +1,10 @@
 # 用户Web实现与验证
 
-2026-11-04。E10当前切片为真实用户访问与组织元数据管理；完整Web Agent仍未完成。
+2026-11-08。E10当前切片为真实用户访问、组织元数据管理和个人钱包/预算；完整Web Agent仍未完成。
+
+## 个人账户增量
+
+已新增`/account`及固定server b76218e契约：精确积分/钱包/个人预算、持久原创建意图、15秒有界等待和撤权清屏。正式源码11项客户端测试、构建、3项Chrome/API替身、4项真实Keycloak/HTTPS/Rust/用户流程及关联真库检查通过，证据分别归WEB-ACCOUNT-001、WEB-CORE-001、USER-OIDC-001。创建预算不充值；完整模型任务、团队预算治理和支付未完成。详细边界见[个人账户页面](personal-account.md)。
 
 ## 已实现
 
@@ -14,7 +18,7 @@
 
 ## 构建与联调
 
-Node固定22.23.2。首次安装：在apps/web运行`npm ci --ignore-scripts`。仓库根运行`node scripts/check.mjs`，执行6项客户端/契约负例、类型检查、生产构建、快照摘要和500kB单块体积上限检查。结果写入`apps/web/dist/bundle-report.json`。
+Node固定22.23.2。首次安装：在apps/web运行`npm ci --ignore-scripts`。仓库根运行`node scripts/check.mjs`，执行11项客户端/契约负例、类型检查、生产构建、快照摘要和500kB单块体积上限检查。结果写入`apps/web/dist/bundle-report.json`。
 
 真实联调从服务端显式执行：
 
@@ -22,14 +26,10 @@ Node固定22.23.2。首次安装：在apps/web运行`npm ci --ignore-scripts`。
 python3 scripts/check-user-identity.py --web-repo ../orange-agent-web
 ```
 
-脚本使用专用本机PostgreSQL与Keycloak，启动用户API43103、用于隔离负例的Admin API43102，以及用户HTTPS入口43122；运行3项真实数据库与3项Chrome身份测试，再清理自己启动的API/Vite进程。数据库/身份容器保留作为开发依赖。证书和客户端秘密都在忽略目录，测试不录制登录trace或密码/OTP截图。
+脚本使用专用本机PostgreSQL与Keycloak，启动用户API43103、用于隔离负例的Admin API43102，以及用户HTTPS入口43122；运行6项真实数据库/会话测试与4项Chrome身份/用户流程，再清理自己启动的API/Vite进程。数据库/身份容器保留作为开发依赖。证书和客户端秘密都在忽略目录，测试不录制登录trace或密码/OTP截图。
 
 普通`npm run dev`监听127.0.0.1:43120，仅启动前端。真实Cookie需要显式本地TLS与固定API代理；没有后端时显示不可用，不回退到模拟数据。安装包签名、生产来源/身份和实际浏览器支持矩阵仍需独立验证。
 
 ## 未完成范围
 
-云Host/完整对话、模型与工具执行、审批、工作区、成果、钱包/报价/支付、团队邀请/成员编辑/资源共享界面以及G4—G6仍未实现。相应API不会在当前用户服务中返回假成功；现有组织角色不等于可以读取私有内容。当前账户由真实已验证issuer/subject首次登录建立独立零余额个人空间，未开放自建身份提供方、匿名注册或自动授予平台角色。
-# 个人账户增量
-
-已新增`/account`及固定server b76218e契约：精确积分/钱包/个人预算、持久原创建意图、15秒有界等待和撤权清屏。正式源码11项客户端测试、构建、3项Chrome/API替身、4项真实Keycloak/HTTPS/Rust/用户流程及关联真库检查通过，证据分别归WEB-ACCOUNT-001、WEB-CORE-001、USER-OIDC-001。创建预算不充值；完整模型任务、团队预算治理、支付和Web Agent仍待实现。详细边界见[个人账户页面](personal-account.md)。以下较早记录保留原时点范围。
-
+用户界面仍缺云Host/完整对话、模型与工具执行、审批、工作区、成果、报价/支付、团队邀请/成员编辑/资源共享以及G4—G6。后端已经实现的模型Job/报价/结算能力不等于这些页面已经交付。现有组织角色不自动授予私有内容或组织预算使用权。账户由真实已验证issuer/subject首次登录建立独立零余额个人空间，未开放自建身份提供方、匿名注册或自动授予平台角色。
