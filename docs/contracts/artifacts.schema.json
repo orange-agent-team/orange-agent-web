@@ -1,0 +1,584 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.invalid/contracts/artifacts.v1.schema.json",
+  "$defs": {
+    "CreateUpload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upload_id",
+        "sha256",
+        "size_bytes",
+        "media_type"
+      ],
+      "properties": {
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,7}|10[0-3][0-9]{6}|104[0-7][0-9]{5}|1048[0-4][0-9]{4}|10485[0-6][0-9]{3}|104857[0-5][0-9]{2}|104857600)$",
+          "description": "Canonical decimal byte length; maximum104857600. Declared media maximum100000000."
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "application/octet-stream",
+            "application/json",
+            "text/plain",
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "audio/wav",
+            "audio/mpeg",
+            "audio/flac",
+            "audio/ogg",
+            "video/mp4"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "media_type": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/webp",
+                  "audio/wav",
+                  "audio/mpeg",
+                  "audio/flac",
+                  "audio/ogg",
+                  "video/mp4"
+                ]
+              }
+            },
+            "required": [
+              "media_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "size_bytes": {
+                "pattern": "^(0|[1-9][0-9]{0,7}|100000000)$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ArtifactView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upload_id",
+        "sha256",
+        "size_bytes",
+        "media_type",
+        "artifact_id",
+        "version_id",
+        "owner_id",
+        "state"
+      ],
+      "properties": {
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,7}|10[0-3][0-9]{6}|104[0-7][0-9]{5}|1048[0-4][0-9]{4}|10485[0-6][0-9]{3}|104857[0-5][0-9]{2}|104857600)$",
+          "description": "Canonical decimal byte length; maximum104857600. Declared media maximum100000000."
+        },
+        "media_type": {
+          "type": "string",
+          "enum": [
+            "application/octet-stream",
+            "application/json",
+            "text/plain",
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "audio/wav",
+            "audio/mpeg",
+            "audio/flac",
+            "audio/ogg",
+            "video/mp4",
+            "application/vnd.orange.model-response+json"
+          ]
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "staging",
+            "available",
+            "deleted"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "media_type": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/webp",
+                  "audio/wav",
+                  "audio/mpeg",
+                  "audio/flac",
+                  "audio/ogg",
+                  "video/mp4"
+                ]
+              }
+            },
+            "required": [
+              "media_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "size_bytes": {
+                "pattern": "^(0|[1-9][0-9]{0,7}|100000000)$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "request_id",
+        "retry_class"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "retry_class": {
+          "type": "string"
+        }
+      }
+    },
+    "BindJobInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upload_id",
+        "version_id"
+      ],
+      "properties": {
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      }
+    },
+    "JobInputView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job_id",
+        "artifact_id",
+        "version_id",
+        "sha256",
+        "size_bytes",
+        "projection_digest"
+      ],
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,5}$",
+          "description": "Actual bound JSON length, maximum262144 bytes."
+        },
+        "projection_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "SubmitTextJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_budget_id",
+        "invocation_id",
+        "purpose",
+        "quote_id",
+        "request_projection_digest"
+      ],
+      "properties": {
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "summary",
+            "memory",
+            "title",
+            "continuation"
+          ]
+        },
+        "quote_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "request_projection_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "JobView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job_id",
+        "root_budget_id",
+        "invocation_id",
+        "execution_state",
+        "settlement_state",
+        "reserved",
+        "charge"
+      ],
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "execution_state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "running",
+            "cancelling",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "settlement_state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "settled",
+            "reversed"
+          ]
+        },
+        "reserved": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Checked signed64-bit nonnegative credit units."
+        },
+        "charge": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$",
+              "description": "Checked signed64-bit nonnegative credit units."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ModelResponseCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Committed model output payload, maximum1048576 UTF-8 JSON bytes. Tool calls remain untrusted and require host validation/approval; native_usage is not a billing fact.",
+      "required": [
+        "response_id",
+        "text",
+        "tool_calls",
+        "native_usage",
+        "finish_reason"
+      ],
+      "properties": {
+        "response_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 1048576
+        },
+        "tool_calls": {
+          "type": "array",
+          "maxItems": 80,
+          "description": "IDs must be unique; names must belong to the original GenerateRequest tool set.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "arguments"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "arguments": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "native_usage": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "input_tokens",
+                "output_tokens"
+              ],
+              "properties": {
+                "input_tokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "output_tokens": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            }
+          ]
+        },
+        "finish_reason": {
+          "enum": [
+            "stop",
+            "tool_calls"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "finish_reason": {
+                "const": "stop"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tool_calls": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "tool_calls": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CancelJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "description": "Explicit original-user stop intent. No client-supplied refund, target actor or cleanup assertion."
+    },
+    "UserJobList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_id",
+        "user_id",
+        "data",
+        "next_cursor"
+      ],
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/JobView"
+          }
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "UserJobLookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_id",
+        "user_id",
+        "quote_id",
+        "job"
+      ],
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "quote_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "job": {
+          "$ref": "#/$defs/JobView"
+        }
+      }
+    }
+  }
+}

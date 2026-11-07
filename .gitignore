@@ -2,6 +2,7 @@ node_modules/
 /.local/
 **/test-results-identity/
 **/test-results-account/
+**/test-results-compute/
 dist/
 .cache/
 .env

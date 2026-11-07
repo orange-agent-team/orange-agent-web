@@ -1,0 +1,55 @@
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import artifacts from '../../../../docs/contracts/artifacts.schema.json' with { type: 'json' };
+import pricing from '../../../../docs/contracts/pricing.schema.json' with { type: 'json' };
+export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
+export interface Artifact { upload_id: string; artifact_id: string; version_id: string; owner_id: string; sha256: string; size_bytes: string; media_type: string; state: 'staging' | 'available' | 'deleted' }
+export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json' }
+export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
+export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
+export interface Quote { quote_id: string; root_budget_id: string; invocation_id: string; price_version: string; request_projection_digest: string; meter_profile_digest: string; input_units: string; output_limit: string; max_amount: string; expires_at_unix: string }
+export interface Submission { root_budget_id: string; invocation_id: string; purpose: 'primary' | 'summary' | 'memory' | 'title' | 'continuation'; quote_id: string; request_projection_digest: string }
+export interface Job { job_id: string; root_budget_id: string; invocation_id: string; execution_state: 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled'; settlement_state: 'pending' | 'settled' | 'reversed'; reserved: string; charge: string | null }
+export interface JobPage { owner_id: string; user_id: string; data: Job[]; next_cursor: string | null }
+export interface JobLookup { owner_id: string; user_id: string; quote_id: string; job: Job }
+export interface InputBinding { job_id: string; artifact_id: string; version_id: string; sha256: string; size_bytes: string; projection_digest: string }
+export interface Result { response_id: string; text: string; tool_calls: { id: string; name: string; arguments: Record<string, unknown> }[]; native_usage: { input_tokens: number; output_tokens: number } | null; finish_reason: 'stop' | 'tool_calls' }
+const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
+const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
+const validators = {
+ Artifact: compile<Artifact>(artifacts, 'ArtifactView'), Upload: compile<Upload>(artifacts, 'CreateUpload'),
+ Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
+ Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
+};
+type Values = { Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; InputBinding: InputBinding; Result: Result };
+const monetary = new Set(['input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
+export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
+ if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');
+ const inspect = (item: unknown): void => {
+  if (item !== null && typeof item === 'object') {
+   for (const [key, entry] of Object.entries(item)) {
+    if (monetary.has(key) && entry !== null && (typeof entry !== 'string' || !/^(0|[1-9][0-9]*)$/.test(entry) || BigInt(entry) > 9223372036854775807n)) throw new Error('INVALID_COMPUTE_MONEY');
+    if (typeof entry === 'object') inspect(entry);
+   }
+   if ('execution_state' in item) { const job = item as Job; if (job.charge !== null && BigInt(job.charge) > BigInt(job.reserved)) throw new Error('INVALID_JOB_CHARGE'); }
+  }
+ };
+ // Tool arguments are untrusted arbitrary objects, never financial metadata.
+ if (kind !== 'Result') inspect(value);
+ if (kind === 'Price' && BigInt((value as Price).output_limit) > 4096n) throw new Error('UNSUPPORTED_OUTPUT_LIMIT');
+ return value as Values[K];
+}
+export function pathId(value: string): string {
+ if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value)) throw new Error('INVALID_ID');
+ return encodeURIComponent(value);
+}
+export async function sha256(bytes: Uint8Array): Promise<string> {
+ const owned = new Uint8Array(bytes.byteLength); owned.set(bytes);
+ return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', owned.buffer)), b => b.toString(16).padStart(2,'0')).join('');
+}
+export function modelInput(invocation: string, model: string, text: string, output: number): Uint8Array {
+ pathId(invocation); pathId(model);
+ if (!text.trim() || !Number.isInteger(output) || output < 1 || output > 4096) throw new Error('INVALID_MODEL_INPUT');
+ const encoder = new TextEncoder(); if (new TextDecoder('utf-8', { fatal: true }).decode(encoder.encode(text)) !== text) throw new Error('INVALID_UNICODE');
+ const bytes = encoder.encode(JSON.stringify({ invocation_id: invocation, model_version: model, messages: [{ role: 'user', content: text }], tools: [], max_output_tokens: output }));
+ if (bytes.length > 262144) throw new Error('MODEL_INPUT_TOO_LARGE'); return bytes;
+}

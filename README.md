@@ -1,5 +1,7 @@
 # Orange Agent Web
 
+最新模型任务增量：已接通[个人文本任务](docs/model-tasks.md)的上传、报价、确认、原请求恢复、取消和结果。22客户端、4 Chrome替身、实际Chrome/API/Worker/固定CPU模型/独立计量/PG结算/清理及关联回归通过。会话/价格/登记准入夹具与真实组件分别记录；完整Web Agent、支付和未知提交的确定性撤回仍未完成。
+
 最新增量：已加入[个人积分与预算页面](docs/personal-account.md)，固定消费服务端`b76218e`的契约。正式源码11项客户端、3项Chrome替身、4项真实OIDC/用户流程及关联真库检查通过。完整模型任务和Web Agent仍未完成。
 
 组织更新（2026-11-04）：E10只负责用户控制台与完整Web Agent。Admin已独立为E11 orange-agent-admin；管理专属文档与契约快照已迁入该目录，本仓库旧入口仅保留导航。

@@ -6,6 +6,8 @@
 
 最新消费快照0.2.0固定到服务端已提交版本`b76218e3b28048af0ef27ea0b04d83724ab04039`，包含原用户身份契约与新增个人账户契约。构建验证来源提交格式及每个本地文件的SHA，不读取相邻工作树。
 
+模型任务增量快照0.3.0进一步固定到`bd896b70b598f45f22beae5ec2cc7977fec915da`，共八份文件；包含[对象/Job接口](artifacts.openapi.json)、[对象/Job schema](artifacts.schema.json)、[文本报价接口](pricing.openapi.json)和[报价schema](pricing.schema.json)。0.2.0为上一个已完成账户切片的历史版本。
+
 - [OpenAPI](user.openapi.json)：6个路径、8个开发候选操作，覆盖用户登录/回调、会话查询/退出/自身退出上下文、组织创建/列表/详情。
 - [JSON Schema](user.schema.json)：独立用户会话、按成员主体绑定的组织投影、创建请求和错误。
 - [摘要清单](snapshot.json)：服务端源路径及逐文件SHA-256；构建核对本地快照，运行时不读取相邻仓库源码。

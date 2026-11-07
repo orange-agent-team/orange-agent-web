@@ -4,8 +4,8 @@ export class ApiFailure extends Error {
   constructor(public readonly status: number, public readonly code: string, public readonly requestId?: string) { super(code); }
 }
 export class UserClient {
-  constructor(private readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init)) {}
-  private async call(path: string, init: RequestInit = {}, expectedStatus = 200): Promise<unknown> {
+  constructor(protected readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init)) {}
+  protected async call(path: string, init: RequestInit = {}, expectedStatus = 200): Promise<unknown> {
     if (!path.startsWith('/api/v1/') || path.includes('://') || path.includes('\\')) throw new Error('INVALID_PATH');
     const deadline = new AbortController();
     const timer = setTimeout(() => deadline.abort(), 15000);

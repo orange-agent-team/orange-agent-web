@@ -1,0 +1,64 @@
+// Real browser/API/model acceptance driver. The private caller supplies explicit
+// user-session, price and enrollment fixtures; no OIDC or payment certification.
+import { chromium } from '@playwright/test';
+import { readFileSync, writeFileSync, statSync, realpathSync } from 'node:fs';
+import { resolve, relative, extname, dirname, isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:https';
+import { request as proxyRequest } from 'node:http';
+import { createHash } from 'node:crypto';
+if(process.version!=='v22.23.2')throw Error('Pinned Node22.23.2 required');
+const file=process.argv[2];if(!file||(statSync(file).mode&0o077))throw Error('Private fixture file required');
+const f=JSON.parse(readFileSync(file,'utf8')), api=new URL(f.api), origin=new URL(f.origin);
+if(api.protocol!=='http:'||api.hostname!=='127.0.0.1'||api.username||api.password||api.pathname!=='/'||api.search||api.hash||origin.origin!=='https://127.0.0.1:43127')throw Error('Dedicated loopback services required');
+if(typeof f.cookie!=='string'||!f.cookie.startsWith('__Host-orange-user='))throw Error('Explicit user-session fixture required');
+const app=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dist=realpathSync(resolve(app,'dist'));
+const tls=resolve(app,'../../.local/tls'),output=resolve(dirname(file),'browser-result.json');
+const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const write=(name,value)=>writeFileSync(resolve(dirname(file),name),value,{mode:0o600});
+let browser,page;const failedResponses=[];
+const server=createServer({key:readFileSync(resolve(tls,'key.pem')),cert:readFileSync(resolve(tls,'cert.pem'))},(req,res)=>{
+ try{
+  const url=new URL(req.url,origin);
+  if(!req.url.startsWith('/')||url.origin!==origin.origin){res.writeHead(400);res.end();return;}
+  if(url.pathname.startsWith('/api/v1/')){
+   const proxy=proxyRequest(new URL(req.url,api),{method:req.method,headers:{...req.headers,host:api.host}},upstream=>{res.writeHead(upstream.statusCode??502,upstream.headers);upstream.pipe(res);});
+   proxy.on('error',()=>{if(!res.headersSent)res.writeHead(502);res.end();});req.on('aborted',()=>proxy.destroy());req.pipe(proxy);return;
+  }
+  if(!['GET','HEAD'].includes(req.method)||url.pathname.startsWith('/admin/')){res.writeHead(404);res.end();return;}
+  let path=resolve(dist,'.'+decodeURIComponent(url.pathname));const rel=relative(dist,path);
+  if(rel.startsWith('..')||isAbsolute(rel)||rel.split('/').some(part=>part.startsWith('.'))){res.writeHead(404);res.end();return;}
+  try{if(!statSync(path).isFile())path=resolve(dist,'index.html');}catch{if(extname(path)){res.writeHead(404);res.end();return;}path=resolve(dist,'index.html');}
+  const actual=realpathSync(path),inside=relative(dist,actual);if(inside.startsWith('..')||isAbsolute(inside)){res.writeHead(404);res.end();return;}
+  const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.json':'application/json'};
+  const bytes=readFileSync(actual);res.writeHead(200,{'Content-Type':types[extname(actual)]??'application/octet-stream','Content-Length':bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(req.method==='HEAD'?undefined:bytes);
+ }catch{res.writeHead(400);res.end();}
+});
+try{
+ await new Promise((ok,bad)=>{server.once('error',bad);server.listen(Number(origin.port),'127.0.0.1',ok);});
+ browser=await chromium.launch({channel:'chrome',headless:true});const context=await browser.newContext({baseURL:origin.origin,ignoreHTTPSErrors:true,viewport:{width:1440,height:1100}});
+ await context.addCookies([{name:'__Host-orange-user',value:f.cookie.slice('__Host-orange-user='.length),url:origin.origin,httpOnly:true,secure:true,sameSite:'Lax'}]);
+ page=await context.newPage();page.on('response',r=>{const url=new URL(r.url());if(url.pathname.startsWith('/api/v1/')&&r.status()>=400)failedResponses.push({path:url.pathname,status:r.status()});});await page.goto('/tasks');await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
+ const sessionResponse=await page.request.get('/api/v1/session');if(sessionResponse.status()!==200)throw Error('Actual user session rejected');const session=await sessionResponse.json();if(session.user_id!==f.user||session.personal_owner_id!==f.owner)throw Error('Actor mismatch');
+ await page.getByRole('combobox',{name:'个人预算'}).selectOption(f.budget);await page.getByRole('combobox',{name:'可用模型'}).selectOption(f.price);
+ await page.getByRole('textbox',{name:'任务文本',exact:true}).fill('Say a short greeting.');
+ const uploaded=page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/content'));
+ await page.getByRole('button',{name:'获取报价',exact:true}).click();const uploadResponse=await uploaded;if(uploadResponse.status()!==200)throw Error('Actual input upload failed');const input=await uploadResponse.json();
+ await page.getByTestId('quote-maximum').waitFor();const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/jobs'));
+ await page.getByRole('button',{name:'确认并提交原请求',exact:true}).click();const response=await submitted;if(response.status()!==200)throw Error('Actual model Job not accepted');const job=await response.json();
+ await page.getByTestId('model-result-text').waitFor({timeout:60000});const text=await page.getByTestId('model-result-text').innerText();if(!text.trim())throw Error('No actual model output rendered');
+ const base=`/api/v1/owners/${encodeURIComponent(f.owner)}`;
+ const metadataResponse=await page.request.get(`${base}/jobs/${encodeURIComponent(job.job_id)}/result`);if(metadataResponse.status()!==200)throw Error('Result metadata denied');const artifact=await metadataResponse.json();
+ const content=await page.request.get(`${base}/uploads/${encodeURIComponent(artifact.upload_id)}/content?version_id=${encodeURIComponent(artifact.version_id)}`);if(content.status()!==200)throw Error('Result bytes denied');const bytes=await content.body();
+ if(hash(bytes)!==artifact.sha256||bytes.length.toString()!==artifact.size_bytes||JSON.parse(bytes).text!==text)throw Error('Displayed output differs from committed bytes');
+ const inputContent=await page.request.get(`${base}/uploads/${encodeURIComponent(input.upload_id)}/content?version_id=${encodeURIComponent(input.version_id)}`);if(inputContent.status()!==200)throw Error('Original input denied');const inputBytes=await inputContent.body();if(hash(inputBytes)!==input.sha256)throw Error('Original input changed');
+ write('browser-input.json',inputBytes);write('browser-output.json',bytes);
+ await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
+ const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
+ await page.getByRole('button',{name:'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
+ writeFileSync(output,JSON.stringify({job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ console.log('PASS actual browser upload/quote/confirmation/Job/result and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
+}catch(error){
+ try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}
+ throw error;
+}finally{if(browser)await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
