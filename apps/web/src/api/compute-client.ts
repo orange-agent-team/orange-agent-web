@@ -68,6 +68,11 @@ export class ComputeClient extends UserClient {
   const job = decodeCompute('Job',await this.call(`${base(session)}/jobs/${pathId(id)}`,{ signal }));
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
  }
+ async withdraw(session:UserSession,key:string,request:Submission){
+  decodeCompute('Submission',request);
+  const value=decodeCompute('Withdrawal',await this.call(`${base(session)}/invocations/${pathId(request.invocation_id)}/withdraw`,{method:'POST',headers:write(session,key),body:JSON.stringify(request)}));
+  if(value.owner_id!==session.personal_owner_id||value.user_id!==session.user_id||value.invocation_id!==request.invocation_id||value.quote_id!==request.quote_id||(value.job&&(value.job.invocation_id!==request.invocation_id||value.job.root_budget_id!==request.root_budget_id)))throw new ApiFailure(403,'ACTOR_MISMATCH');return value;
+ }
  async cancel(session: UserSession, id: string, key: string) {
   const job = decodeCompute('Job',await this.call(`${base(session)}/jobs/${pathId(id)}/cancel`,{ method: 'POST', headers: write(session,key), body: '{}' }));
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;

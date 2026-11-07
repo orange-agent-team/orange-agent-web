@@ -127,22 +127,26 @@ export function clearFinishedCreation(storage: IntentStorage, session: UserSessi
  storage.removeItem(computeIntentKey(session));
 }
 
-/** Withdraw never starts an original task. Confirmed but not yet visible work
- * remains unresolved; only an authoritative existing Job can be cancelled. */
+/** Withdraw never starts an original task. Only the current server's immutable
+ * prevention receipt can close a not-yet-visible submission. */
 export async function withdrawComputeIntent(api:ComputeClient,storage:IntentStorage,session:UserSession,original:ComputeIntent):Promise<ComputeIntent|null>{
  const saved=loadComputeIntent(storage,session);if(!saved||identity(saved)!==identity(checkIntent(original,session)))throw new Error('INTENT_NO_LONGER_CURRENT');
- let intent=saveComputeIntent(storage,session,{...saved,withdrawn:true});
- const found=await api.lookup(session,intent.invocation);
- if(found){
-  if(!intent.quote||found.quote_id!==intent.quote.quote_id)throw new Error('RECOVERED_QUOTE_CHANGED');
-  intent=saveComputeIntent(storage,session,{...intent,confirmed:true,job:found.job});
-  const job=await api.cancel(session,found.job.job_id,intent.submit_key);
-  return saveComputeIntent(storage,session,{...intent,job});
+ const intent=saveComputeIntent(storage,session,{...saved,withdrawn:true});
+ let prevented=false;
+ if(intent.quote){
+  const receipt=await api.withdraw(session,intent.submit_key,{root_budget_id:intent.budget,invocation_id:intent.invocation,purpose:'primary',quote_id:intent.quote.quote_id,request_projection_digest:intent.quote.request_projection_digest});
+  if(receipt.job)return saveComputeIntent(storage,session,{...intent,confirmed:true,job:receipt.job});
+  if(!receipt.prevented||!receipt.receipt_id)throw new Error('WITHDRAWAL_UNCONFIRMED');
+  prevented=true;
+ }else{
+  // Before any quote there was no submission approval. Still refuse to delete
+  // an input used by an unexpected existing Invocation.
+  if(await api.lookup(session,intent.invocation))throw new Error('RECOVERED_QUOTE_CHANGED');
+  if(intent.confirmed)throw new Error('ORIGINAL_SUBMISSION_STILL_UNRESOLVED');
  }
- if(intent.confirmed)throw new Error('ORIGINAL_SUBMISSION_STILL_UNRESOLVED');
  const artifact=await api.beginUpload(session,intent.upload);
  if(artifact.state!=='deleted')await api.deleteUpload(session,intent.upload.upload_id);
  const current=loadComputeIntent(storage,session);
- if(!current||identity(current)!==identity(intent)||current.confirmed||current.job||!current.withdrawn)throw new Error('INTENT_NO_LONGER_CURRENT');
+ if(!current||identity(current)!==identity(intent)||current.job||!current.withdrawn||(!prevented&&current.confirmed))throw new Error('INTENT_NO_LONGER_CURRENT');
  storage.removeItem(computeIntentKey(session));return null;
 }

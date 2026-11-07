@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange private artifact API",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "Current user sessions and independent artifact/source content ACLs. Includes committed Worker response references. Model execution success does not imply settlement or resource cleanup. Native usage is never a billing grant."
   },
   "paths": {
@@ -908,6 +908,101 @@
         },
         "description": "Read-only original Invocation lookup, current submitter only. A404 is not proof that an earlier request cannot still commit; never allocate a new Invocation or replace the original idempotency key to recover."
       }
+    },
+    "/api/v1/owners/{owner}/invocations/{invocation}/withdraw": {
+      "post": {
+        "operationId": "withdrawOriginalUserInvocation",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "description": "Stable submission key within owner scope; same key requires same request and originating user."
+          },
+          {
+            "name": "invocation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authorized metadata, not execution authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvocationWithdrawal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authorized metadata, not execution authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitTextJob"
+              }
+            }
+          }
+        },
+        "description": "Current original user only. Request body is the exact original SubmitTextJob. Key scope is user/owner/Invocation. A prevented receipt fences future acceptance for this user and Invocation, with no invented Job or refund; an existing Job is cancelled through its normal lifecycle and may remain cancelling/pending. Every replay rechecks current authority."
+      }
     }
   },
   "components": {
@@ -1496,6 +1591,105 @@
             "$ref": "#/components/schemas/JobView"
           }
         }
+      },
+      "InvocationWithdrawal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "owner_id",
+          "user_id",
+          "invocation_id",
+          "quote_id",
+          "prevented",
+          "receipt_id",
+          "job"
+        ],
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "prevented": {
+            "type": "boolean"
+          },
+          "receipt_id": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "prevented": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "receipt_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "job": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "receipt_id": {
+                  "type": "null"
+                },
+                "job": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

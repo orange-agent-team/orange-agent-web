@@ -11,6 +11,7 @@ export interface Submission { root_budget_id: string; invocation_id: string; pur
 export interface Job { job_id: string; root_budget_id: string; invocation_id: string; execution_state: 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled'; settlement_state: 'pending' | 'settled' | 'reversed'; reserved: string; charge: string | null }
 export interface JobPage { owner_id: string; user_id: string; data: Job[]; next_cursor: string | null }
 export interface JobLookup { owner_id: string; user_id: string; quote_id: string; job: Job }
+export interface Withdrawal { owner_id:string; user_id:string; invocation_id:string; quote_id:string; prevented:boolean; receipt_id:string|null; job:Job|null }
 export interface InputBinding { job_id: string; artifact_id: string; version_id: string; sha256: string; size_bytes: string; projection_digest: string }
 export interface Result { response_id: string; text: string; tool_calls: { id: string; name: string; arguments: Record<string, unknown> }[]; native_usage: { input_tokens: number; output_tokens: number } | null; finish_reason: 'stop' | 'tool_calls' }
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
@@ -18,9 +19,9 @@ const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ 
 const validators = {
  Artifact: compile<Artifact>(artifacts, 'ArtifactView'), Upload: compile<Upload>(artifacts, 'CreateUpload'),
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
- Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
+ Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; InputBinding: InputBinding; Result: Result };
+type Values = { Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');

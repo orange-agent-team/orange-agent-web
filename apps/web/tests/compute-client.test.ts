@@ -29,6 +29,12 @@ describe('fixed-contract model Job client', () => {
   await expect(new ComputeClient(vi.fn<typeof fetch>().mockResolvedValue(json({ owner_id: 'other', user_id: 'user', data: [], next_cursor: null }))).jobs(session)).rejects.toMatchObject({ code: 'ACTOR_MISMATCH' });
   expect(() => decodeCompute('Job',{ ...job, charge: '101' })).toThrow(); expect(() => decodeCompute('Job',{ ...job, reserved: '9223372036854775808' })).toThrow();
  });
+ it('binds a definitive withdrawal receipt to the original user, Invocation and quote',async()=>{
+  const request={root_budget_id:'budget',invocation_id:'invocation',purpose:'primary' as const,quote_id:'quote',request_projection_digest:'a'.repeat(64)};
+  const receipt={owner_id:'owner',user_id:'user',invocation_id:'invocation',quote_id:'quote',prevented:true,receipt_id:'receipt',job:null};
+  const client=new ComputeClient(vi.fn<typeof fetch>().mockResolvedValue(json(receipt)));expect((await client.withdraw(session,'original-key',request)).prevented).toBe(true);
+  for(const bad of [{...receipt,user_id:'other'},{...receipt,quote_id:'other'},{...receipt,receipt_id:null},{...receipt,job}])await expect(new ComputeClient(vi.fn<typeof fetch>().mockResolvedValue(json(bad))).withdraw(session,'original-key',request)).rejects.toThrow();
+ });
  it('verifies original result length/hash and never grants model tool effects', async () => {
   const bytes = new TextEncoder().encode(JSON.stringify(result)), artifact = await descriptor(bytes,MODEL_RESPONSE_MEDIA);
   const good = new ComputeClient(vi.fn<typeof fetch>().mockResolvedValue(new Response(bytes,{ headers: { 'Content-Length': artifact.size_bytes } })));

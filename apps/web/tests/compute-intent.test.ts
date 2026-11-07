@@ -18,7 +18,9 @@ async function fixture() {
  const quotes=vi.spyOn(api,'quote').mockResolvedValue(quote);
  const submit=vi.spyOn(api,'submit').mockResolvedValue(job);
  const bind=vi.spyOn(api,'bind').mockResolvedValue({job_id:job.job_id,artifact_id:artifact.artifact_id,version_id:artifact.version_id,sha256:artifact.sha256,size_bytes:artifact.size_bytes,projection_digest:quote.request_projection_digest});
- return {records,storage,intent,bytes,artifact,quote,job,api,lookup,put,quotes,submit,bind};
+ const withdraw=vi.spyOn(api,'withdraw').mockResolvedValue({owner_id:session.personal_owner_id,user_id:session.user_id,invocation_id:intent.invocation,quote_id:quote.quote_id,prevented:true,receipt_id:'withdraw-receipt',job:null});
+ vi.spyOn(api,'deleteUpload').mockResolvedValue({...artifact,state:'deleted'});
+ return {records,storage,intent,bytes,artifact,quote,job,api,lookup,put,quotes,submit,bind,withdraw};
 }
 describe('recoverable model-task intent with explicit in-memory approval',()=>{
  it('pricing never submits, and no prompt or credentials enter recovery storage',async()=>{
@@ -54,14 +56,18 @@ describe('recoverable model-task intent with explicit in-memory approval',()=>{
   const approval=confirmComputeIntent(session,ready.prepared);const advancing=advanceComputeIntent(f.api,f.storage,session,ready.intent,undefined,approval);
   const rejected=expect(advancing).rejects.toThrow('INTENT_NO_LONGER_CURRENT');
   expect(loadComputeIntent(f.storage,session)?.confirmed).toBe(true);
-  await expect(withdrawComputeIntent(f.api,f.storage,session,ready.intent)).rejects.toThrow('ORIGINAL_SUBMISSION_STILL_UNRESOLVED');
-  resolve(null);await rejected;expect(f.submit).not.toHaveBeenCalled();expect(loadComputeIntent(f.storage,session)?.withdrawn).toBe(true);
+  expect(await withdrawComputeIntent(f.api,f.storage,session,ready.intent)).toBeNull();
+  resolve(null);await rejected;expect(f.submit).not.toHaveBeenCalled();expect(loadComputeIntent(f.storage,session)).toBeNull();
  });
  it('unconfirmed input can be removed and a late writer cannot restore the cleared draft',async()=>{
   const f=await fixture();const ready=await advanceComputeIntent(f.api,f.storage,session,f.intent,f.bytes);
-  vi.spyOn(f.api,'deleteUpload').mockResolvedValue({...f.artifact,state:'deleted'});
   expect(await withdrawComputeIntent(f.api,f.storage,session,ready.intent)).toBeNull();
   expect(loadComputeIntent(f.storage,session)).toBeNull();expect(()=>saveComputeIntent(f.storage,session,ready.intent)).toThrow('INTENT_NO_LONGER_CURRENT');expect(f.submit).not.toHaveBeenCalled();
+ });
+ it('does not clear an unresolved request from an invalid or mismatched withdrawal receipt',async()=>{
+  const f=await fixture();const ready=await advanceComputeIntent(f.api,f.storage,session,f.intent,f.bytes);
+  f.withdraw.mockResolvedValue({owner_id:'owner',user_id:'user',invocation_id:f.intent.invocation,quote_id:'quote',prevented:false,receipt_id:null,job:null});
+  await expect(withdrawComputeIntent(f.api,f.storage,session,ready.intent)).rejects.toThrow('WITHDRAWAL_UNCONFIRMED');expect(loadComputeIntent(f.storage,session)).not.toBeNull();expect(f.api.deleteUpload).not.toHaveBeenCalled();
  });
  it('refuses changed original identity or quote and clears only the matching resolved intent',async()=>{
   const f=await fixture();const ready=await advanceComputeIntent(f.api,f.storage,session,f.intent,f.bytes);

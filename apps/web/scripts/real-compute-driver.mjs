@@ -42,6 +42,15 @@ try{
  const sessionResponse=await page.request.get('/api/v1/session');if(sessionResponse.status()!==200)throw Error('Actual user session rejected');const session=await sessionResponse.json();if(session.user_id!==f.user||session.personal_owner_id!==f.owner)throw Error('Actor mismatch');
  await page.getByRole('combobox',{name:'个人预算'}).selectOption(f.budget);await page.getByRole('combobox',{name:'可用模型'}).selectOption(f.price);
  await page.getByRole('textbox',{name:'任务文本',exact:true}).fill('Say a short greeting.');
+ const previewQuoteResponse=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/text-quotes'));
+ await page.getByRole('button',{name:'获取报价',exact:true}).click();const previewResponse=await previewQuoteResponse;if(previewResponse.status()!==201)throw Error('Preview quote failed');const previewQuote=await previewResponse.json();await page.getByTestId('quote-maximum').waitFor();
+ const original=await page.evaluate(({user,owner})=>JSON.parse(sessionStorage.getItem('orange-compute-v1:'+JSON.stringify([user,owner]))),{user:f.user,owner:f.owner});
+ const withdrawalResponse=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/withdraw'));
+ await page.getByRole('button',{name:'删除未提交输入',exact:true}).click();const withdrawalHttp=await withdrawalResponse;if(withdrawalHttp.status()!==200)throw Error('Pre-admission withdrawal rejected');const withdrawal=await withdrawalHttp.json();if(!withdrawal.prevented||!withdrawal.receipt_id||withdrawal.job!==null)throw Error('No authoritative prevention receipt');
+ await page.getByRole('button',{name:'获取报价',exact:true}).waitFor();
+ const originalBody={root_budget_id:previewQuote.root_budget_id,invocation_id:previewQuote.invocation_id,purpose:'primary',quote_id:previewQuote.quote_id,request_projection_digest:previewQuote.request_projection_digest};
+ const blocked=await page.request.post('/api/v1/owners/'+encodeURIComponent(f.owner)+'/jobs',{data:originalBody,headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':original.submit_key}});if(blocked.status()!==409||(await blocked.json()).code!=='INVOCATION_WITHDRAWN')throw Error('Late original submission crossed the barrier');
+ await page.getByRole('textbox',{name:'任务文本',exact:true}).fill('Say a short greeting.');
  const uploaded=page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/content'));
  await page.getByRole('button',{name:'获取报价',exact:true}).click();const uploadResponse=await uploaded;if(uploadResponse.status()!==200)throw Error('Actual input upload failed');const input=await uploadResponse.json();
  await page.getByTestId('quote-maximum').waitFor();const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/jobs'));
@@ -53,11 +62,15 @@ try{
  if(hash(bytes)!==artifact.sha256||bytes.length.toString()!==artifact.size_bytes||JSON.parse(bytes).text!==text)throw Error('Displayed output differs from committed bytes');
  const inputContent=await page.request.get(`${base}/uploads/${encodeURIComponent(input.upload_id)}/content?version_id=${encodeURIComponent(input.version_id)}`);if(inputContent.status()!==200)throw Error('Original input denied');const inputBytes=await inputContent.body();if(hash(inputBytes)!==input.sha256)throw Error('Original input changed');
  write('browser-input.json',inputBytes);write('browser-output.json',bytes);
+ await page.getByText(/已记费用/).waitFor();
+ const settledResponse=await page.request.get(`${base}/jobs/${encodeURIComponent(job.job_id)}`);const settled=await settledResponse.json();if(settled.settlement_state!=='settled'||settled.charge===null)throw Error('Actual settlement missing');
+ const lateWithdrawal=await page.request.post(`${base}/invocations/${encodeURIComponent(job.invocation_id)}/withdraw`,{data:response.request().postDataJSON(),headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':response.request().headers()['idempotency-key']}});
+ if(lateWithdrawal.status()!==200)throw Error('Late withdrawal reconciliation failed');const retained=await lateWithdrawal.json();if(retained.prevented||retained.job?.execution_state!=='succeeded'||retained.job?.charge!==settled.charge)throw Error('Late withdrawal changed committed delivery or charge');
  await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
  const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
  await page.getByRole('button',{name:'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
- writeFileSync(output,JSON.stringify({job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
- console.log('PASS actual browser upload/quote/confirmation/Job/result and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
+ writeFileSync(output,JSON.stringify({prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ console.log('PASS actual browser withdrawal barrier, late-submit refusal, upload/quote/confirmation/Job/result, retained late-withdrawal charge and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
 }catch(error){
  try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}
  throw error;

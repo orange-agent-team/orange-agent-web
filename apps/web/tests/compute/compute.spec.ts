@@ -6,7 +6,7 @@ const session={session_id:'compute-session',user_id:'compute-user',personal_owne
 const price={price_version:'price-fixture',model_version:'model-fixture',node_id:'node-fixture',meter_profile_digest:'b'.repeat(64),input_price:'2000',output_price:'6000',output_limit:'32',fee_bps:2000};
 const digest=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
 async function fixture(page:Page,options:{loss?:'after'|'before';running?:boolean;empty?:boolean;balance?:string}={}){
- const state={job:null as Job|null,input:null as Artifact|null,upload:null as Upload|null,request:null as {invocation_id:string;tools:unknown[]}|null,quote:null as Quote|null,submits:0,binds:0,cancels:0,deletes:0,lookups:0,deleted:false,loss:options.loss,keys:[] as string[],quoteKeys:[] as string[]};
+ const state={job:null as Job|null,input:null as Artifact|null,upload:null as Upload|null,request:null as {invocation_id:string;tools:unknown[]}|null,quote:null as Quote|null,prevented:false,submission:null as unknown,submits:0,binds:0,cancels:0,deletes:0,lookups:0,deleted:false,loss:options.loss,keys:[] as string[],quoteKeys:[] as string[]};
  const result=Buffer.from(JSON.stringify({response_id:'response-fixture',text:'Hello <script data-model-danger>window.MODEL_EXECUTED=true</script>',tool_calls:[],native_usage:null,finish_reason:'stop'}));
  const output:Artifact={upload_id:'output-fixture',artifact_id:'output-artifact',version_id:'output-version',owner_id:session.personal_owner_id,sha256:digest(result),size_bytes:result.length.toString(),media_type:'application/vnd.orange.model-response+json',state:'available'};
  await page.route('**/api/v1/**',async route=>{
@@ -29,8 +29,13 @@ async function fixture(page:Page,options:{loss?:'after'|'before';running?:boolea
    const body=request.postDataJSON();expect(body.input_upload_id).toBe(state.upload!.upload_id);expect(body.input_version_id).toBe(state.input!.version_id);state.quoteKeys.push(request.headers()['idempotency-key']);
    state.quote??={quote_id:'quote-fixture',root_budget_id:'budget-fixture',invocation_id:state.request!.invocation_id,price_version:price.price_version,request_projection_digest:'a'.repeat(64),meter_profile_digest:price.meter_profile_digest,input_units:'10',output_limit:'32',max_amount:'100',expires_at_unix:'4102444800'};return send(state.quote,201);
   }
+  if(path.endsWith('/withdraw')&&method==='POST'){
+   expect(request.postDataJSON().invocation_id).toBe(state.request!.invocation_id);expect(request.postDataJSON().quote_id).toBe(state.quote!.quote_id);
+   if(state.job){if(['queued','running'].includes(state.job.execution_state))state.job.execution_state='cancelling';return send({owner_id:session.personal_owner_id,user_id:session.user_id,invocation_id:state.request!.invocation_id,quote_id:state.quote!.quote_id,prevented:false,receipt_id:null,job:state.job});}
+   state.prevented=true;return send({owner_id:session.personal_owner_id,user_id:session.user_id,invocation_id:state.request!.invocation_id,quote_id:state.quote!.quote_id,prevented:true,receipt_id:'withdraw-receipt',job:null});
+  }
   if(path.endsWith('/jobs')&&method==='POST'){
-   state.submits++;state.keys.push(request.headers()['idempotency-key']);expect(request.postDataJSON().quote_id).toBe(state.quote!.quote_id);
+   state.submits++;state.submission=request.postDataJSON();state.keys.push(request.headers()['idempotency-key']);if(state.prevented)return error('INVOCATION_WITHDRAWN',409);expect(request.postDataJSON().quote_id).toBe(state.quote!.quote_id);
    if(state.loss==='before'){state.loss=undefined;return route.abort('failed');}
    state.job??={job_id:'job-fixture',root_budget_id:'budget-fixture',invocation_id:state.request!.invocation_id,execution_state:'queued',settlement_state:'pending',reserved:'100',charge:null};
    if(state.loss==='after'){state.loss=undefined;return route.abort('failed');}return send(state.job);
@@ -57,7 +62,8 @@ test('lost accepted response recovers read-only, binds once, renders text safely
 });
 test('unaccepted unknown response is never automatically resubmitted on reload',async({page})=>{
  const state=await fixture(page,{loss:'before'});await quote(page);await page.getByRole('button',{name:'确认并提交原请求'}).click();await expect(page.getByText('操作待核对',{exact:true})).toBeVisible();await page.reload();await page.getByRole('button',{name:'核对原任务',exact:true}).click();await expect(page.getByTestId('quote-maximum')).toBeVisible();expect(state.submits).toBe(1);expect(state.binds).toBe(0);
- await page.getByRole('button',{name:'停止原请求'}).click();await expect(page.getByText(/停止意图已保留/)).toBeVisible();await expect(page.getByRole('button',{name:'核对原任务',exact:true})).toBeDisabled();expect(state.submits).toBe(1);
+ await page.getByRole('button',{name:'停止原请求'}).click();await expect(page.getByRole('button',{name:'获取报价',exact:true})).toBeVisible();expect(state.submits).toBe(1);expect(state.prevented).toBe(true);expect(state.job).toBeNull();
+ const late=await page.evaluate(async value=>(await fetch('/api/v1/owners/'+value.owner+'/jobs',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':value.csrf,'Idempotency-Key':value.key},body:JSON.stringify(value.body)})).status,{owner:session.personal_owner_id,csrf:session.csrf_token,key:state.keys[0],body:state.submission});expect(late).toBe(409);expect(state.job).toBeNull();
 });
 test('insufficient credits block confirmation and an unsubmitted input can be deleted',async({page})=>{
  const state=await fixture(page,{balance:'0'});await quote(page);await expect(page.getByRole('button',{name:'确认并提交原请求'})).toBeDisabled();await page.getByRole('button',{name:'删除未提交输入'}).click();await expect(page.getByRole('button',{name:'获取报价',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'获取报价',exact:true})).toHaveAttribute('aria-busy','false');expect(state.submits).toBe(0);expect(state.deletes).toBe(1);
