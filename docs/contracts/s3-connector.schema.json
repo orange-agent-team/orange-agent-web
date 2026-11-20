@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Source": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "source_id",
+        "source_digest",
+        "bucket",
+        "prefix"
+      ],
+      "additionalProperties": false
+    },
+    "Grant": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_digest",
+        "grant_id",
+        "expires_at",
+        "revoked"
+      ],
+      "additionalProperties": false
+    },
+    "Consent": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "source_id",
+        "source_digest",
+        "duration_seconds"
+      ],
+      "additionalProperties": false
+    },
+    "GrantReceipt": {
+      "type": "object",
+      "properties": {
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "grant_id"
+      ],
+      "additionalProperties": false
+    },
+    "Inventory": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Source"
+          },
+          "maxItems": 32
+        },
+        "recent_grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Grant"
+          },
+          "maxItems": 100
+        },
+        "run_readable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sources",
+        "recent_grants",
+        "run_readable"
+      ],
+      "additionalProperties": false
+    },
+    "Head": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "etag": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size_bytes": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "maxLength": 20
+        }
+      },
+      "required": [
+        "key",
+        "etag",
+        "version",
+        "size_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "List": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "maxItems": 100
+        },
+        "next_after": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "keys",
+        "next_after"
+      ],
+      "additionalProperties": false
+    },
+    "Artifact": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "source_backed_artifact"
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "head": {
+          "$ref": "#/$defs/Head"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "kind",
+        "artifact_id",
+        "head",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "list_objects"
+            },
+            "after": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "action",
+            "limit"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "head_object"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "action",
+            "key"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "read_object"
+            },
+            "expected": {
+              "$ref": "#/$defs/Head"
+            }
+          },
+          "required": [
+            "action",
+            "expected"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Output": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "external_untrusted_data"
+        },
+        "data": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Head"
+            },
+            {
+              "$ref": "#/$defs/List"
+            },
+            {
+              "$ref": "#/$defs/Artifact"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
