@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange development checkout",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/owners/{owner}/credit-offers": {
@@ -514,7 +514,7 @@
     "/api/v1/payment-events/stripe-test": {
       "post": {
         "operationId": "acceptSignedTestCheckoutEvent",
-        "description": "The signature covers the unmodified request bytes. A 204 response only acknowledges durable receipt or an irrelevant event.",
+        "description": "Verify the original bytes and record known checkout, refund or dispute event identity. The HTTP response acknowledges intake, never a cash or credit decision.",
         "security": [
           {
             "StripeSignature": []
@@ -820,6 +820,51 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owners/{owner}/spending-status": {
+      "get": {
+        "operationId": "getScopedSpendingStatus",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "owner",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized test-merchant state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSpendingStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Request rejected or evidence unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
               }
             }
           }
@@ -1163,6 +1208,33 @@
           "owner_id",
           "data",
           "next_cursor"
+        ]
+      },
+      "TestSpendingStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "positive_spending": {
+            "enum": [
+              "available",
+              "paused"
+            ]
+          },
+          "open_restrictions": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          }
+        },
+        "required": [
+          "owner_id",
+          "positive_spending",
+          "open_restrictions"
         ]
       }
     }

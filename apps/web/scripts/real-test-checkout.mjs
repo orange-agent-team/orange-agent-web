@@ -19,6 +19,17 @@ try{
  const page=await ctx.newPage();page.setDefaultTimeout(20000);
  await page.goto('/account');
  const create=page.getByRole('button',{name:'创建测试订单',exact:true});
+ if(f.spending_paused){
+   await page.getByText('支付争议核对中，新的付费任务和充值派发已暂停。',{exact:true}).waitFor();
+   if(await create.first().isEnabled())throw Error('New paid request offered on a paused account');
+   const originalOrder=page.getByRole('button',{name:'查看测试订单 '+f.order,exact:true});
+   await page.getByRole('region',{name:'测试订单记录'}).waitFor();
+   if(!await originalOrder.count())await page.getByRole('button',{name:'下页订单'}).click();
+   await originalOrder.click();
+   await page.getByText('测试积分已入账',{exact:true}).waitFor();
+   await page.screenshot({path:f.screenshot,fullPage:true});
+   console.log(JSON.stringify({real_spending_pause:true,prior_purchase_still_readable:true}));
+ }else{
  await create.click();await page.getByRole('button',{name:'取消未派发订单'}).click();
  await page.getByText('已取消',{exact:true}).waitFor();await page.getByRole('button',{name:'返回测试充值',exact:true}).click();
  await create.click();
@@ -50,4 +61,5 @@ try{
  }
  await page.screenshot({path:f.screenshot,fullPage:true});
  console.log(JSON.stringify({chrome:true,locally_cancelled:true,recovered_same_order:true,dispatches:count,authoritative_test_credit:true,visited_external_checkout:false,refund_request_recovery_and_cancel:!!f.refunds}));
+ }
 } finally {await browser?.close();await server.close();}

@@ -5,6 +5,7 @@ import type { UserSession } from '../api/contracts';
 import type { AudioGrantReceipt, AudioQuote, AudioTarget, Job } from '../api/compute-contracts';
 import { ComputeClient } from '../api/compute-client';
 
+import {ApiFailure} from '../api/client';
 const api = new ComputeClient();
 
 export default function AudioOrder({session,receipt}:{session:UserSession;receipt:AudioGrantReceipt}) {
@@ -29,7 +30,7 @@ export default function AudioOrder({session,receipt}:{session:UserSession;receip
     if(active.current)return;
     const c=new AbortController();active.current=c;setBusy(true);setMessage('');
     try {await work(c.signal);}
-    catch {if(!c.signal.aborted)setMessage('请求结果待核对。刷新页面可查询原任务。');}
+    catch(e) {if(!c.signal.aborted)setMessage(e instanceof ApiFailure&&e.code==='SPENDING_PAUSED'?'账户支付争议正在核对，未新增转写预留。':'请求结果待核对。刷新页面可查询原任务。');}
     finally {if(!c.signal.aborted){setBusy(false);active.current=null;}}
   }
   function prepare(){

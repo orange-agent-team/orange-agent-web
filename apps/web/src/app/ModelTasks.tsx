@@ -16,6 +16,7 @@ function failureText(error: unknown): string {
   if (error instanceof Error && error.message === 'ORIGINAL_SUBMISSION_STILL_UNRESOLVED') return '停止意图已保留，但尚未查到原任务。请继续撤回核对，当前不会再发起提交。';
   if (error instanceof ContentUnavailable) return '当前无法读取此结果，输入可能已删除或内容权限已经变化。';
   if (error instanceof Error && ['INPUT_BYTES_CHANGED', 'ORIGINAL_INPUT_CHANGED'].includes(error.message)) return '文本与原请求不一致，尚未替换原输入。请重新输入原文本。';
+  if (error instanceof ApiFailure && error.code === 'SPENDING_PAUSED') return '账户支付争议正在核对，平台已拒绝本次付费任务，未新增预留。';
   if (error instanceof ApiFailure && error.code === 'JOB_SUBMISSION_REJECTED') return '任务提交被拒绝，请核对余额、预算和报价有效期。原请求编号已保留。';
   return '请求尚未完成核对。请保留原请求，刷新或继续核对，避免重复创建任务。';
 }

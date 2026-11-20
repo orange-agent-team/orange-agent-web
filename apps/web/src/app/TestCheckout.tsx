@@ -58,11 +58,15 @@ export default function TestCheckout({session,onCredit}:{session:UserSession;onC
       if(action==='create'){sessionStorage.setItem(storage,JSON.stringify(h));setHandle(h);}
       const v=await api.order(session,h.id,action,c.signal,h.offer);
       if(!c.signal.aborted){setOrder(v);if(v.state==='credited')onCredit();}
-    }catch{if(!c.signal.aborted){setOrder(undefined);setError('结果尚未确认，请查询同一订单。');}}
+    }catch(e){if(!c.signal.aborted){setOrder(undefined);setError(e instanceof ApiFailure&&e.code==='SPENDING_PAUSED'?'新消费已暂停，请核对账户支付争议。':'结果尚未确认，请查询同一订单。');}}
     finally{if(!c.signal.aborted){active.current=null;setBusy(false);}}
   }
+  const policy=useQuery({queryKey:['test-spending-policy',session.session_id,session.personal_owner_id],enabled:!!offers,queryFn:({signal})=>api.status(session,signal),retry:false,refetchInterval:10000});
+  const spendingAllowed=policy.data?.positive_spending==='available' && !policy.error;
   if(!handle&&!offers&&!error)return null;
   return <Card title="测试积分充值">
+    {policy.data?.positive_spending==='paused'&&<Alert type="warning" title="支付争议核对中，新的付费任务和充值派发已暂停。" description="可以查询原订单、既有任务及账本。"/>}
+    {policy.error&&<Alert type="warning" title="暂时无法核对新消费权限。"/>}
     <p>这里使用测试商户。到账状态以平台核对后的账本为准。</p>
     {handle?<><p>订单编号 <code>{handle.id}</code></p>
       {order&&<><p role="status">{states[order.state]}</p><p>{order.offer.amount_minor} {order.offer.currency.toUpperCase()} 最小货币单位 · {formatCredits(order.offer.microcredits)} 积分</p></>}
@@ -70,12 +74,12 @@ export default function TestCheckout({session,onCredit}:{session:UserSession;onC
       <Space wrap>
         {!order&&<Button disabled={busy||!ready} onClick={()=>void perform(handle,'get')}>查询原订单</Button>}
         {!order&&handle.offer&&<Button disabled={busy||!ready} onClick={()=>void perform(handle,'create')}>恢复原订单</Button>}
-        {order?.state==='created'&&<><Button disabled={busy} onClick={()=>void perform(handle,'session')}>确认创建测试支付会话</Button><Button disabled={busy} onClick={()=>void perform(handle,'cancel')}>取消未派发订单</Button></>}
+        {order?.state==='created'&&<><Button disabled={busy||!spendingAllowed} onClick={()=>void perform(handle,'session')}>确认创建测试支付会话</Button><Button disabled={busy} onClick={()=>void perform(handle,'cancel')}>取消未派发订单</Button></>}
         {order?.state==='open'&&order.checkout_url&&<a href={order.checkout_url} target="_blank" rel="noopener noreferrer">打开测试收银台</a>}
         {order&&!terminal.has(order.state)&&order.state!=='created'&&<Button disabled={busy} onClick={()=>void perform(handle,'reconcile')}>核对付款状态</Button>}
         {order&&terminal.has(order.state)&&<Button disabled={busy} onClick={()=>{try{sessionStorage.removeItem(storage);setHandle(undefined);setOrder(undefined);setError('');const url=new URL(window.location.href);url.searchParams.delete('checkout_order');history.replaceState(history.state,'',url);}catch{setError('无法清除本机订单记录。');}}}>返回测试充值</Button>}
       </Space>
-    </>:offers?.map(v=><p key={v.offer_id}>{v.amount_minor} {v.currency.toUpperCase()} 最小货币单位 · {formatCredits(v.microcredits)} 积分 <Button disabled={busy||!ready} onClick={()=>void perform({id:crypto.randomUUID(),offer:v.offer_id},'create')}>创建测试订单</Button></p>)}
+    </>:offers?.map(v=><p key={v.offer_id}>{v.amount_minor} {v.currency.toUpperCase()} 最小货币单位 · {formatCredits(v.microcredits)} 积分 <Button disabled={busy||!ready||!spendingAllowed} onClick={()=>void perform({id:crypto.randomUUID(),offer:v.offer_id},'create')}>创建测试订单</Button></p>)}
     {!handle&&offers&&<OrderHistory session={session} open={id=>{void perform({id},'get');try{sessionStorage.setItem(storage,JSON.stringify({id}));setHandle({id});}catch{setError('无法保存原订单编号。');}}}/>}
     {error&&<Alert type="warning" title={error}/>}
   </Card>;

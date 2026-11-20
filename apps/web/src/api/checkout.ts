@@ -15,6 +15,8 @@ const offers=ajv.compile<Offer[]>({$ref:schema.$id+'#/$defs/TestCreditOffers'});
 const order=ajv.compile<Order>({$ref:schema.$id+'#/$defs/TestCheckoutOrder'});
 export type OrderPage={owner_id:string;data:Pick<Order,'order_id'|'state'|'offer'>[];next_cursor:string|null};
 const page=ajv.compile<OrderPage>({$ref:schema.$id+'#/$defs/TestOrderPage'});
+type SpendingStatus={owner_id:string;positive_spending:'available'|'paused';open_restrictions:string};
+const spending=ajv.compile<SpendingStatus>({$ref:schema.$id+'#/$defs/TestSpendingStatus'});
 const eligibility=ajv.compile<Eligibility>({$ref:schema.$id+'#/$defs/TestRefundEligibility'});
 const refund=ajv.compile<Refund>({$ref:schema.$id+'#/$defs/TestRefundView'});
 export const validOrder=(s:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s);
@@ -24,6 +26,11 @@ export class CheckoutClient extends UserClient{
   async offers(s:UserSession,signal:AbortSignal){
     const v=await this.call(root(s)+'/credit-offers',{signal});
     if(!offers(v)||!v.every(validOffer)||new Set(v.map(x=>x.offer_id)).size!==v.length)throw Error('INVALID_CREDIT_OFFERS');
+    return v;
+  }
+  async status(s:UserSession,signal:AbortSignal){
+    const v=await this.call(root(s)+'/spending-status',{signal});
+    if(!spending(v)||v.owner_id!==s.personal_owner_id||(v.positive_spending==='paused')!==(BigInt(v.open_restrictions)>0n))throw Error('UNCONFIRMED_SPENDING_STATUS');
     return v;
   }
   async history(s:UserSession,after:string|undefined,signal:AbortSignal){

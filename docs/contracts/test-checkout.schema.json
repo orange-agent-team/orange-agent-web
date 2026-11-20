@@ -325,6 +325,33 @@
         "data",
         "next_cursor"
       ]
+    },
+    "TestSpendingStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "positive_spending": {
+          "enum": [
+            "available",
+            "paused"
+          ]
+        },
+        "open_restrictions": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        }
+      },
+      "required": [
+        "owner_id",
+        "positive_spending",
+        "open_restrictions"
+      ]
     }
   }
 }
