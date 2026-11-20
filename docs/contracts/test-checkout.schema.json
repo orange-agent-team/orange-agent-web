@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.local/schemas/test-checkout.v1.json",
+  "$defs": {
+    "TestCreditOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "offer_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[a-z]{3}$"
+        },
+        "amount_minor": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,7}$"
+        },
+        "microcredits": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        }
+      },
+      "required": [
+        "offer_id",
+        "currency",
+        "amount_minor",
+        "microcredits"
+      ]
+    },
+    "CreateTestOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "offer_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "order_id",
+        "offer_id"
+      ]
+    },
+    "Empty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ]
+    },
+    "TestCheckoutOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "offer": {
+          "$ref": "#/$defs/TestCreditOffer"
+        },
+        "state": {
+          "enum": [
+            "created",
+            "cancelled",
+            "dispatching",
+            "unknown",
+            "open",
+            "expired",
+            "paid_review",
+            "credited",
+            "review_required"
+          ]
+        },
+        "checkout_url": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "maxLength": 8192,
+              "pattern": "^https://checkout\\.stripe\\.com/c/pay/cs_test_[A-Za-z0-9_]+(?:[?#].*)?$"
+            }
+          ]
+        }
+      },
+      "required": [
+        "order_id",
+        "owner_id",
+        "offer",
+        "state",
+        "checkout_url"
+      ]
+    },
+    "TestCreditOffers": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/TestCreditOffer"
+      }
+    }
+  }
+}

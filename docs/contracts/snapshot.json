@@ -1,7 +1,7 @@
 {
-  "version": "0.15.0",
+  "version": "0.16.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "7a34dfa0d4f3d0d9864ec2e638bf9124187c3b30",
+  "source_commit": "bc2db79f126c2be216640a5892df1ac0e7033982",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
@@ -82,6 +82,14 @@
     "confluence-connector.openapi.json": {
       "source": "contracts/openapi/confluence-connector.v1.json",
       "sha256": "287f2918c259488c7ed2714cea6245e53fe1d17146598d95cab7b39f829e6483"
+    },
+    "test-checkout.schema.json": {
+      "source": "contracts/json-schema/test-checkout.schema.json",
+      "sha256": "2d90fe02f9ec628d93a0d2e3231632c186d4615caa8048d90c7be18cf827de7a"
+    },
+    "test-checkout.openapi.json": {
+      "source": "contracts/openapi/test-checkout.v1.json",
+      "sha256": "683e89610b2a72903400ca46442b4badeea72ad1075dbf988a11536141b1c122"
     }
   }
 }
