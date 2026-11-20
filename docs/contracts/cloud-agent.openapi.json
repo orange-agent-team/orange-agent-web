@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange hosted Agent development control plane",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "description": "Reservations require a current platform Host, active owner budget and an available personal text input. A queued Run has not executed a model or tool. Workspace lease, Run execution and accounting are distinct."
   },
   "paths": {
@@ -382,6 +382,257 @@
         },
         "description": "Persist a withdrawal for this exact owner and request key. Any existing nonterminal Run is cancelled; delayed creates with this key are rejected. Input artifacts retain their own lifecycle."
       }
+    },
+    "/api/v1/agent/runs/{id}/model": {
+      "get": {
+        "operationId": "getHostedModelStep",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudModelStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{id}/model/quotes": {
+      "post": {
+        "operationId": "quoteHostedModelStep",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextQuoteView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{id}/model/submit": {
+      "post": {
+        "operationId": "confirmHostedModelStep",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmCloudModel"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{id}/model/result": {
+      "get": {
+        "operationId": "getCommittedHostedModelResult",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudModelResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -446,6 +697,9 @@
             "type": "integer",
             "minimum": 60,
             "maximum": 3600
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelSelection"
           }
         },
         "required": [
@@ -693,6 +947,447 @@
             "$ref": "#/components/schemas/CloudRun"
           }
         }
+      },
+      "ModelSelection": {
+        "type": "object",
+        "properties": {
+          "price_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "output_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        "required": [
+          "price_version",
+          "model_version",
+          "invocation_id",
+          "output_limit"
+        ],
+        "additionalProperties": false
+      },
+      "CloudModelStatus": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "input_version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "price_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "output_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "stage": {
+            "enum": [
+              "awaiting_workspace",
+              "ready_to_quote",
+              "submitted",
+              "result_available",
+              "stopped",
+              "unavailable"
+            ]
+          },
+          "job_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "request_projection_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "run_id",
+          "owner_id",
+          "user_id",
+          "root_budget_id",
+          "input_version_id",
+          "price_version",
+          "model_version",
+          "invocation_id",
+          "output_limit",
+          "stage"
+        ],
+        "additionalProperties": false
+      },
+      "ConfirmCloudModel": {
+        "type": "object",
+        "properties": {
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "request_projection_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "max_amount": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical integer microcredits."
+          }
+        },
+        "required": [
+          "quote_id",
+          "request_projection_digest",
+          "max_amount"
+        ],
+        "additionalProperties": false
+      },
+      "TextQuoteView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "root_budget_id",
+          "invocation_id",
+          "price_version",
+          "request_projection_digest",
+          "meter_profile_digest",
+          "input_units",
+          "output_limit",
+          "max_amount",
+          "expires_at_unix"
+        ],
+        "properties": {
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "price_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "request_projection_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "meter_profile_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "input_units": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "output_limit": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "max_amount": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical decimal microcredits, maximum9223372036854775807 enforced by the checked money type."
+          },
+          "expires_at_unix": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          }
+        }
+      },
+      "JobView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "job_id",
+          "root_budget_id",
+          "invocation_id",
+          "execution_state",
+          "settlement_state",
+          "reserved",
+          "charge"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "execution_state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "cancelling",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "settlement_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "settled",
+              "reversed"
+            ]
+          },
+          "reserved": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Checked signed64-bit nonnegative credit units."
+          },
+          "charge": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,18})$",
+                "description": "Checked signed64-bit nonnegative credit units."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ModelResponseCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Committed model output payload, maximum1048576 UTF-8 JSON bytes. Tool calls remain untrusted and require host validation/approval; native_usage is not a billing fact.",
+        "required": [
+          "response_id",
+          "text",
+          "tool_calls",
+          "native_usage",
+          "finish_reason"
+        ],
+        "properties": {
+          "response_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1048576
+          },
+          "tool_calls": {
+            "type": "array",
+            "maxItems": 80,
+            "description": "IDs must be unique; names must belong to the original GenerateRequest tool set.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "name",
+                "arguments"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "arguments": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "native_usage": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "input_tokens",
+                  "output_tokens"
+                ],
+                "properties": {
+                  "input_tokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "output_tokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            ]
+          },
+          "finish_reason": {
+            "enum": [
+              "stop",
+              "tool_calls"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "finish_reason": {
+                  "const": "stop"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "tool_calls": {
+                  "maxItems": 0
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "tool_calls": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CloudModelResult": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "job_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ModelResponseCandidate"
+          }
+        },
+        "required": [
+          "run_id",
+          "user_id",
+          "owner_id",
+          "job_id",
+          "response"
+        ],
+        "additionalProperties": false
       }
     }
   }
