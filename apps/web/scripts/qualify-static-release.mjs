@@ -8,10 +8,11 @@ if(!['web','admin'].includes(surface))throw Error('Unknown application surface')
 const manifest=JSON.parse(readFileSync(resolve(dir,'manifest.json'),'utf8'));
 const session=surface==='web'?'/api/v1/session':'/admin/v1/session';
 let sessionRequests=0;
+const unexpectedApi=[];
 const server=createServer((req,res)=>{
  const path=new URL(req.url,'http://127.0.0.1').pathname;
  if(path.startsWith('/api/')||path.startsWith('/admin/v1/')){
-  if(path===session)sessionRequests++;
+  if(path===session)sessionRequests++;else unexpectedApi.push(path);
   res.writeHead(503,{'content-type':'application/json','cache-control':'no-store'});return res.end(JSON.stringify({code:'SERVICE_UNAVAILABLE',message:'Offline release qualification'}));
  }
  const name='site'+path;
@@ -34,7 +35,8 @@ try{
  await page.getByRole('heading',{level:1}).first().waitFor();
  const route=surface==='web'?'/api/v1/auth/start':'/admin/v1/auth/start';
  await page.locator('a[href="'+route+'"]').first().waitFor();
- if(sessionRequests<1||errors.length||blocked.length)throw Error('Failed static release gate '+JSON.stringify({errors,blocked}));
+ const privateNav=await page.getByRole('navigation',{name:surface==='web'?'用户导航':'管理导航'}).count();
+ if(sessionRequests<1||errors.length||blocked.length||privateNav||unexpectedApi.length)throw Error('Failed static release gate '+JSON.stringify({errors,blocked,privateNav,unexpectedApi}));
  console.log(JSON.stringify({chrome:true,deep_link:true,no_external_asset_requests:true,session_status:503,privileged_interface_opened:false,
   scope:'Static archive with explicit offline API response; separate live API and identity gates qualify authenticated flows.'}));
 }finally{await browser?.close();server.closeAllConnections();await new Promise(ok=>server.close(ok));}

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Reproduce a static client from two clean committed-source trees, then serve its archived bytes to Chrome."""
 import argparse
-from contextlib import ExitStack
 import gzip
 import hashlib
 import io
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tarfile
