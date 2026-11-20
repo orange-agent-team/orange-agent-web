@@ -17,7 +17,27 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});
  const ctx=await browser.newContext({baseURL:f.origin,ignoreHTTPSErrors:true,viewport:{width:1200,height:1100}});
  await ctx.addCookies([{name:'__Host-orange-user',value:f.token,url:f.origin,secure:true,httpOnly:true,sameSite:'Lax'}]);
- const page=await ctx.newPage();page.setDefaultTimeout(20000);if(f.job){
+ const page=await ctx.newPage();page.setDefaultTimeout(20000);if(f.price_grant){
+  // Resume only the same opaque handle that the consent page saves before its POST.
+  await page.goto('/tasks/audio');
+  await page.evaluate(x=>sessionStorage.setItem('orange.audio-consent.v1:'+x.user+':'+x.owner,x.grant),{user:f.user,owner:f.owner,grant:f.price_grant});
+  await page.reload();
+  await page.getByRole('button',{name:'获取转写报价'}).click();
+  for(const text of ['11000 毫秒','12000 个开发积分最小单位','2200 个开发积分最小单位',f.node+' · '+f.region,f.budget])await page.getByText(text,{exact:true}).waitFor();
+  let submitted=0,job;
+  await page.route('**/jobs',async route=>{
+    if(route.request().method()!=='POST')return route.continue();
+    const response=await route.fetch(), value=await response.json();
+    if(response.status()!==200||value.reserved!=='2200'||value.invocation_id!==f.invocation)throw Error('Unconfirmed real reservation');
+    submitted++;job=value.job_id;await route.abort('failed');
+  });
+  await page.screenshot({path:f.screenshot,fullPage:true});
+  await page.getByRole('button',{name:'确认预留并提交转写'}).click();
+  await page.getByText('请求结果待核对。刷新页面可查询原任务。',{exact:true}).waitFor();
+  await page.reload();await page.getByText(job,{exact:true}).waitFor();
+  if(submitted!==1||await page.getByRole('button',{name:'确认预留并提交转写'}).count())throw Error('Recovered order could spend twice');
+  console.log(JSON.stringify({real_chrome_development_quote:true,confirmed_limit:'2200',lost_response_after_freeze:true,original_job_recovered:true,submit_calls:submitted}));
+ }else if(f.job){
   await page.goto('/tasks');
   await page.getByRole('button',{name:'查看任务 '+f.job,exact:true}).click();
   const text=await page.getByTestId('model-result-text').innerText();

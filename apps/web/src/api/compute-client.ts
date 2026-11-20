@@ -1,6 +1,6 @@
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
-import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
+import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
@@ -24,6 +24,22 @@ export class ComputeClient extends UserClient {
   const value=decodeCompute('AudioGrantReceipt',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{signal}));
   if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return value;
+ }
+ async audioPrice(session:UserSession, grant:string, signal?:AbortSignal){
+  const data=await this.call(base(session)+'/transcription-input-grants/'+pathId(grant)+'/prices',{signal});
+  if(!Array.isArray(data)||data.length>1) throw new Error('INVALID_AUDIO_PRICE_LIST');
+  return data.length ? decodeCompute('AudioPrice',data[0]) : null;
+ }
+ async audioQuote(session:UserSession, receipt:AudioGrantReceipt, price:AudioPrice, requestId:string, signal?:AbortSignal){
+  pathId(requestId);
+  const body={request_id:requestId,grant_id:receipt.grant_id,price_version:price.price_version};
+  const quote=decodeCompute('AudioQuote',await this.call(base(session)+'/transcription-quotes',{method:'POST',headers:write(session,requestId),body:JSON.stringify(body),signal},201));
+  if(quote.grant_id!==receipt.grant_id || quote.invocation_id!==receipt.invocation_id || quote.observation_id!==receipt.observation_id ||
+    quote.request_projection_digest!==receipt.projection_digest || quote.price_version!==price.price_version ||
+    quote.price_per_minute!==price.price_per_minute || quote.fee_bps!==price.fee_bps ||
+    (BigInt(quote.duration_ms)*BigInt(price.price_per_minute)+59999n)/60000n!==BigInt(quote.max_amount))
+    throw new ApiFailure(201,'UNCONFIRMED_RESPONSE');
+  return quote;
  }
  async withdrawAudio(session:UserSession,id:string,signal?:AbortSignal){
   const value=decodeCompute('AudioWithdrawal',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{
@@ -93,7 +109,7 @@ export class ComputeClient extends UserClient {
   return result;
  }
  async submit(session: UserSession, key: string, request: Submission) {
-  decodeCompute('Submission',request);
+  decodeCompute(request.purpose==='transcription'?'AudioSubmission':'Submission',request);
   const job = decodeCompute('Job', await this.call(`${base(session)}/jobs`, { method: 'POST', headers: write(session,key), body: JSON.stringify(request) }));
   if (job.root_budget_id !== request.root_budget_id || job.invocation_id !== request.invocation_id) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE'); return job;
  }
@@ -119,7 +135,7 @@ export class ComputeClient extends UserClient {
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
  }
  async withdraw(session:UserSession,key:string,request:Submission){
-  decodeCompute('Submission',request);
+  decodeCompute(request.purpose==='transcription'?'AudioSubmission':'Submission',request);
   const value=decodeCompute('Withdrawal',await this.call(`${base(session)}/invocations/${pathId(request.invocation_id)}/withdraw`,{method:'POST',headers:write(session,key),body:JSON.stringify(request)}));
   if(value.owner_id!==session.personal_owner_id||value.user_id!==session.user_id||value.invocation_id!==request.invocation_id||value.quote_id!==request.quote_id||(value.job&&(value.job.invocation_id!==request.invocation_id||value.job.root_budget_id!==request.root_budget_id)))throw new ApiFailure(403,'ACTOR_MISMATCH');return value;
  }

@@ -5,6 +5,8 @@ import { ComputeClient } from '../api/compute-client';
 import { ApiFailure } from '../api/client';
 import { pathId, type AudioGrantReceipt, type AudioMeasurement, type AudioTarget } from '../api/compute-contracts';
 
+import AudioOrder from './AudioOrder';
+
 const api = new ComputeClient();
 type Props = {session:UserSession;upload:string;measurement?:AudioMeasurement};
 
@@ -13,6 +15,7 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
   const [grant,setGrant]=useState('');
   const [state,setState]=useState<AudioGrantReceipt['state']|'unknown'>('unknown');
   const [expires,setExpires]=useState('');
+  const [receipt,setReceipt]=useState<AudioGrantReceipt>();
   const [observation,setObservation]=useState('');
   const [target,setTarget]=useState<AudioTarget>();
   const [budget,setBudget]=useState('');
@@ -38,7 +41,7 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
     async function check(){
       try {
         const r=await api.audioGrant(session,grant,c.signal);
-        if(!c.signal.aborted){setState(r.state);setExpires(r.expires_at_unix);setError('');}
+        if(!c.signal.aborted){setReceipt(r);setState(r.state);setExpires(r.expires_at_unix);setError('');}
       } catch(failure){
         if(!c.signal.aborted){setState('unknown');setExpires('');setError(failure instanceof ApiFailure&&failure.status===404?'尚未找到已签发授权，可撤回这个编号。':'暂时无法确认授权状态，可撤回后重新授权。');}
       } finally {if(!c.signal.aborted)timer=setTimeout(()=>void check(),5000);}
@@ -63,7 +66,7 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
       const result=await api.createAudioGrant(session,{grant_id:id,invocation_id:crypto.randomUUID(),root_budget_id:budget,upload_id:upload,
         observation_id:target.observation_id,node_id:target.node_id,region_id:target.region_id,execution_profile_digest:target.execution_profile_digest,
         measurement,language:language||null,ttl_seconds:900,allow_remote_transcription:true},signal);
-      if(!signal.aborted){setState(result.state);setExpires(result.expires_at_unix);}
+      if(!signal.aborted){setReceipt(result);setState(result.state);setExpires(result.expires_at_unix);}
     });
   }
   if(!grant&&!measurement&&!error)return null;
@@ -72,6 +75,8 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
       <p>授权编号 <code>{grant}</code></p>
       <p role="status">{({active:'授权有效',revoked:'授权已撤回',expired:'授权已过期',unknown:'授权待核对'})[state]}
         {state==='active'&&expires&&<>，截止 {new Date(Number(expires)*1000).toLocaleTimeString()}</>}</p>
+      {state==='active' && receipt?.grant_id===grant &&
+        <AudioOrder key={grant} receipt={receipt} session={session}/>}
       {state==='expired'||state==='revoked'?
         <Button disabled={busy} onClick={()=>{try{sessionStorage.removeItem(key);setGrant('');setState('unknown');setApproved('');setError('');}catch{setError('无法清除本机恢复记录。');}}}>完成</Button>:
         <Button disabled={busy} onClick={()=>void perform(async signal=>{await api.withdrawAudio(session,grant,signal);if(!signal.aborted){setState('revoked');setExpires('');}})}>撤回音频授权</Button>}

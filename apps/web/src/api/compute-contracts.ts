@@ -19,6 +19,8 @@ export interface AudioGrantReceipt {
  grant_id:string; invocation_id:string; observation_id:string; projection_digest:string; expires_at_unix:string;
  state:'active'|'revoked'|'expired';
 }
+export interface AudioPrice { price_version:string; price_per_minute:string; fee_bps:number }
+export interface AudioQuote extends AudioPrice {quote_id:string; grant_id:string; root_budget_id:string; invocation_id:string; request_projection_digest:string; observation_id:string; duration_ms:string; max_amount:string; expires_at_unix:string}
 export interface AudioWithdrawal {grant_id:string; state:'revoked'}
 export interface TranscriptionResult {
  version:1; request_projection_digest:string; execution_profile_digest:string; measurement:AudioMeasurement;
@@ -29,7 +31,7 @@ export interface Upload { upload_id: string; sha256: string; size_bytes: string;
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
 export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
 export interface Quote { quote_id: string; root_budget_id: string; invocation_id: string; price_version: string; request_projection_digest: string; meter_profile_digest: string; input_units: string; output_limit: string; max_amount: string; expires_at_unix: string }
-export interface Submission { root_budget_id: string; invocation_id: string; purpose: 'primary' | 'summary' | 'memory' | 'title' | 'continuation'; quote_id: string; request_projection_digest: string }
+export interface Submission { root_budget_id: string; invocation_id: string; purpose: 'primary' | 'summary' | 'memory' | 'title' | 'continuation' | 'transcription'; quote_id: string; request_projection_digest: string }
 export interface Job { job_id: string; root_budget_id: string; invocation_id: string; execution_state: 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled'; settlement_state: 'pending' | 'settled' | 'reversed'; reserved: string; charge: string | null }
 export interface JobPage { owner_id: string; user_id: string; data: Job[]; next_cursor: string | null }
 export interface JobLookup { owner_id: string; user_id: string; quote_id: string; job: Job }
@@ -39,6 +41,9 @@ export interface Result { response_id: string; text: string; tool_calls: { id: s
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
 const validators = {
+ AudioPrice: compile<AudioPrice>(artifacts,'TranscriptionPrice'),
+ AudioQuote: compile<AudioQuote>(artifacts,'TranscriptionQuoteView'),
+ AudioSubmission: compile<Submission>(artifacts,'SubmitTranscriptionJob'),
  TranscriptionResult: compile<TranscriptionResult>(artifacts,'TranscriptionResult'),
  AudioTarget: compile<AudioTarget>(artifacts,'TranscriptionInputTarget'),
  AudioGrantRequest: compile<AudioGrantRequest>(artifacts,'CreateTranscriptionInputGrant'),
@@ -49,8 +54,8 @@ const validators = {
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
-const monetary = new Set(['input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
+type Values = { AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+const monetary = new Set(['price_per_minute', 'input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');
  const inspect = (item: unknown): void => {
