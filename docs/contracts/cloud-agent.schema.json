@@ -331,6 +331,9 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 4096
+        },
+        "tool": {
+          "$ref": "#/$defs/CloudToolChoice"
         }
       },
       "required": [
@@ -404,7 +407,9 @@
             "submitted",
             "result_available",
             "stopped",
-            "unavailable"
+            "unavailable",
+            "waiting_tool",
+            "tool_result_available"
           ]
         },
         "job_id": {
@@ -416,6 +421,9 @@
         "request_projection_digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "tool": {
+          "$ref": "#/$defs/CloudToolChoice"
         }
       },
       "required": [
@@ -746,6 +754,439 @@
         "response"
       ],
       "additionalProperties": false
+    },
+    "CloudToolChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "execution_digest"
+      ],
+      "properties": {
+        "name": {
+          "const": "list_directory"
+        },
+        "execution_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "CloudTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "execution_digest",
+        "tool_version",
+        "policy_version",
+        "approval_required",
+        "execution_environment",
+        "model_definition"
+      ],
+      "properties": {
+        "name": {
+          "const": "list_directory"
+        },
+        "execution_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "tool_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "approval_required": {
+          "const": true
+        },
+        "execution_environment": {
+          "const": "hosted_workspace"
+        },
+        "model_definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "description",
+            "parameters"
+          ],
+          "properties": {
+            "name": {
+              "const": "list_directory"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            },
+            "parameters": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "CloudTools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "user_id",
+        "owner_id",
+        "tools"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "tools": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/CloudTool"
+          }
+        }
+      }
+    },
+    "CloudDirectoryArguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "const": "."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        }
+      }
+    },
+    "CloudDirectoryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "snapshot_digest",
+        "entries",
+        "next_cursor",
+        "omitted_unsupported"
+      ],
+      "properties": {
+        "path": {
+          "const": "."
+        },
+        "snapshot_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "kind",
+              "bytes"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "kind": {
+                "const": "file"
+              },
+              "bytes": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              }
+            }
+          }
+        },
+        "next_cursor": {
+          "type": "null"
+        },
+        "omitted_unsupported": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CloudOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "approval_id",
+        "tool_name",
+        "tool_version",
+        "argument_digest",
+        "review_digest",
+        "version",
+        "state",
+        "commit_id"
+      ],
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "tool_name": {
+          "const": "list_directory"
+        },
+        "tool_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "argument_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "review_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "state": {
+          "enum": [
+            "intended",
+            "dispatching",
+            "succeeded",
+            "failed",
+            "unknown"
+          ]
+        },
+        "commit_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ]
+        },
+        "arguments": {
+          "$ref": "#/$defs/CloudDirectoryArguments"
+        },
+        "result": {
+          "$ref": "#/$defs/CloudDirectoryResult"
+        },
+        "result_artifact_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "CloudOperations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "user_id",
+        "owner_id",
+        "workspace_id",
+        "capability_id",
+        "execution_digest",
+        "policy_version",
+        "revoked",
+        "source_available",
+        "data"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "capability_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "execution_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "source_available": {
+          "type": "boolean"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/CloudOperation"
+          }
+        }
+      }
+    },
+    "CloudDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_digest",
+        "expected_version",
+        "decision"
+      ],
+      "properties": {
+        "review_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expected_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ]
+        }
+      }
+    },
+    "CloudDecisionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "user_id",
+        "owner_id",
+        "operation_id",
+        "decision",
+        "review_digest"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ]
+        },
+        "review_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "CloudCapabilityRevocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "user_id",
+        "owner_id",
+        "receipt_id",
+        "revoked"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "revoked": {
+          "const": true
+        }
+      }
     }
   }
 }

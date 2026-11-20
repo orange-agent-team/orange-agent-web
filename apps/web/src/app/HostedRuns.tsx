@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import {Alert,Button,Card,Input,InputNumber,Select,Space,Tag} from 'antd';
+import {Alert,Button,Card,Checkbox,Input,InputNumber,Select,Space,Tag} from 'antd';
 import {Link} from 'react-router';
 import HostedModelStep from './HostedModelStep';
 import {CloudClient,profile,type CloudRun} from '../api/cloud-runs';
@@ -14,6 +14,7 @@ const workspace={requested:'已预留',preparing:'准备中',ready:'就绪',runn
 
 export default function HostedRuns({session,invalidate}:{session:UserSession;invalidate:()=>void}){
   const [mode,setMode]=useState<'workspace'|'model'>('workspace'),[price,setPrice]=useState(''),[modelRun,setModelRun]=useState('');
+  const [directory,setDirectory]=useState(false);
   const [outputLimit,setOutputLimit]=useState(32);
   const [prompt,setPrompt]=useState(''),[budget,setBudget]=useState(''),[ttl,setTtl]=useState(900);
   const [pages,setPages]=useState<string[]>([]),[budgetPages,setBudgetPages]=useState<string[]>([]);
@@ -22,13 +23,15 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
   const [cancelId,setCancelId]=useState<string>();
   const busy=useRef(false),alive=useRef(true);
   useEffect(()=>{alive.current=true;try{
-    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);}}setStorageReady(true);
+    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);setDirectory(!!old.model.tool);}}setStorageReady(true);
   }catch{setNotice('无法核对本会话的待处理请求，已暂停创建。');}return()=>{alive.current=false;};},[session.session_id,session.user_id,session.personal_owner_id]);
   const key=authorityKey(session);
   const cap=useQuery({queryKey:[key,'cloud-capacity'],queryFn:({signal})=>api.cloudCapacity(session,signal),refetchInterval:10000});
   const list=useQuery({queryKey:[key,'cloud-runs',pages.at(-1)],queryFn:({signal})=>api.cloudRuns(session,pages.at(-1),signal),refetchInterval:10000});
   const budgets=useQuery({queryKey:[key,'cloud-budgets',budgetPages.at(-1)],queryFn:({signal})=>api.budgets(session,budgetPages.at(-1),signal)});
   const prices=useQuery({queryKey:[key,'hosted-prices'],enabled:mode==='model'&&!intent,queryFn:({signal})=>api.prices(signal)});
+  const tools=useQuery({queryKey:[key,'cloud-tools'],enabled:mode==='model'&&directory&&!intent,queryFn:({signal})=>api.cloudTools(session,signal)});
+  const directoryTool=tools.data?.find(t=>t.name==='list_directory');
   const resolvedPrice=prices.data?.find(v=>v.price_version===price)??prices.data?.[0];
   const active=budgets.data?.data.filter(b=>b.status==='active')??[];
   const selected=budget||active[0]?.root_budget_id;
@@ -45,14 +48,16 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
     try{
       let current=intent;
       const model=current?.model??(!current&&mode==='model'&&resolvedPrice?{price_version:resolvedPrice.price_version,model_version:resolvedPrice.model_version,
-        invocation_id:crypto.randomUUID(),output_limit:Math.min(outputLimit,Number(resolvedPrice.output_limit))}:undefined);
-      if(!current&&mode==='model'&&!model)throw Error('MODEL_UNAVAILABLE');
+        invocation_id:crypto.randomUUID(),output_limit:Math.min(outputLimit,Number(resolvedPrice.output_limit)),
+        ...(directory&&directoryTool?{tool:{name:directoryTool.name,execution_digest:directoryTool.execution_digest}}:{})}:undefined);
+      if(!current&&mode==='model'&&(!model||(directory&&!directoryTool)))throw Error('MODEL_UNAVAILABLE');
+      const definition=current?.definition??(model?.tool?directoryTool?.model_definition:undefined);
       const source=model?JSON.stringify({invocation_id:model.invocation_id,model_version:model.model_version,
-        messages:[{role:'user',content:prompt}],tools:[],max_output_tokens:model.output_limit}):prompt;
+        messages:[{role:'user',content:prompt}],tools:definition?[definition]:[],max_output_tokens:model.output_limit}):prompt;
       const bytes=new TextEncoder().encode(source);
       if(!current){
         if(!selected||!cap.data?.can_reserve||!prompt.trim()||!bytes.length||bytes.length>262144)throw Error('INPUT_REQUIRED');
-        current={v:1,owner:session.personal_owner_id,user:session.user_id,session:session.session_id,key:crypto.randomUUID(),budget:selected,ttl,model,
+        current={v:1,owner:session.personal_owner_id,user:session.user_id,session:session.session_id,key:crypto.randomUUID(),budget:selected,ttl,model,definition,
           upload:{upload_id:crypto.randomUUID(),media_type:model?'application/json':'text/plain',sha256:await sha256(bytes),size_bytes:String(bytes.length)}};
         save(current);
       }
@@ -105,12 +110,14 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
     <label>运行模式<Select aria-label="运行模式" value={mode} disabled={working||!!intent} onChange={setMode} options={[{value:'workspace',label:'仅准备工作区'},{value:'model',label:'模型回复'}]}/></label>
     {mode==='model'&&<label>推理价格版本<Select aria-label="推理价格版本" value={intent?.model?.price_version??resolvedPrice?.price_version}
       disabled={working||!!intent} onChange={setPrice} options={prices.data?.map(p=>({value:p.price_version,label:p.model_version+' · '+p.price_version}))??[]}/></label>}
+    {mode==='model'&&<Checkbox checked={directory} disabled={working||!!intent} onChange={e=>setDirectory(e.target.checked)}>允许模型申请查看工作区根目录</Checkbox>}
+    {mode==='model'&&directory&&<p>每次目录读取还需核对参数并批准。</p>}
     {mode==='model'&&<label>最大输出单位<InputNumber aria-label="最大输出单位" min={1} max={Math.min(4096,Number(resolvedPrice?.output_limit??4096))}
       precision={0} disabled={working||!!intent} value={Math.min(outputLimit,Number(resolvedPrice?.output_limit??4096))} onChange={v=>setOutputLimit(v??1)}/></label>}
     {mode==='model'&&!intent&&!prices.isFetching&&!resolvedPrice&&<Alert type="warning" title="当前没有可用的审核推理价格"/>}
     <label>工作区期限<Select aria-label="工作区期限" value={ttl} disabled={working||!!intent} onChange={setTtl} options={[{value:300,label:'5 分钟'},{value:900,label:'15 分钟'},{value:3600,label:'1 小时'}]}/></label>
     <label>运行输入<Input.TextArea aria-label="运行输入" value={prompt} disabled={working||!!intent?.prepared} maxLength={262144} onChange={e=>setPrompt(e.target.value)}/></label>
-    <Button type="primary" loading={working} disabled={!storageReady||(!intent&&(!cap.data?.can_reserve||!selected||!prompt.trim()||(mode==='model'&&!resolvedPrice)))} onClick={()=>void reserve()}>{intent?'继续原请求':'保存输入并预留工作区'}</Button>
+    <Button type="primary" loading={working} disabled={!storageReady||(!intent&&(!cap.data?.can_reserve||!selected||!prompt.trim()||(mode==='model'&&(!resolvedPrice||(directory&&!directoryTool)))))} onClick={()=>void reserve()}>{intent?'继续原请求':'保存输入并预留工作区'}</Button>
     {intent&&<><p>原请求编号 {intent.key}</p><Button danger disabled={working} onClick={()=>void withdraw()}>撤回原请求</Button></>}
     {notice&&<Alert type="warning" title={notice}/>}
     {confirmed&&<p role="status">运行 {confirmed.run_id} · {names[confirmed.status]} · 工作区{workspace[confirmed.workspace.status]}</p>}

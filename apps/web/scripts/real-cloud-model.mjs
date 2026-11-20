@@ -123,8 +123,59 @@ try{
   if(cancelled.execution_state!=='cancelled'||cancelled.settlement_state!=='settled'||cancelled.charge!=='0'||JSON.stringify(cancelWallet)!==JSON.stringify(restored))
     throw Error('Run cancellation did not release the unstarted Job exactly');
   await secondEntry.getByText(/工作区已回收/).waitFor();
+  const directoryRuns=[];
+  if(f.directory_cases){
+    await page.getByRole('checkbox',{name:'允许模型申请查看工作区根目录'}).check();
+    await page.getByLabel('最大输出单位').fill('96');await page.getByLabel('最大输出单位').press('Tab');
+    for(const scenario of ['approved','rejected','expired_after_dispatch']){
+      const decision=scenario==='rejected'?'reject':'approve';
+      await page.getByRole('button',{name:'刷新托管运行'}).click();
+      await page.getByRole('textbox',{name:'运行输入'}).fill('Use the list_directory tool now with path "." to list the working directory. Make a tool call. Do not give a text answer.');
+      const saved=page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/content'));
+      const reservation=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/v1/agent/runs');
+      await page.getByRole('button',{name:'保存输入并预留工作区'}).click();
+      const run=await (await reservation).json(),input=await (await saved).json(),base='/api/v1/agent/runs/'+run.run_id;
+      const quoteWait=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===base+'/model/quotes');
+      await page.getByRole('button',{name:'获取模型报价'}).click();const quote=await (await quoteWait).json();
+      if(!quote.quote_id)throw Error('Real tool turn not quotable');
+      const jobWait=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===base+'/model/submit');
+      await page.getByRole('button',{name:'确认报价并提交模型作业'}).click();const job=await (await jobWait).json();
+      if(!job.job_id)throw Error('Model tool call not submitted');
+      const tool=page.getByRole('region',{name:'目录操作'});
+      await tool.getByRole('button',{name:'批准本次目录读取'}).waitFor({timeout:100000});
+      const first=await (await ctx.request.get(origin+base+'/operations')).json(),op=first.data[0];
+      if(op.state!=='intended'||op.decision||op.result||op.arguments?.path!=='.'||!op.commit_id)throw Error('Non-pending operation before approval');
+      const decisionPath=base+'/operations/'+op.operation_id+'/decision';
+      const stale=await ctx.request.post(origin+decisionPath,{headers:headers('stale-'+decision),data:{decision:'approve',expected_version:op.version,review_digest:'0'.repeat(64)}});
+      if(stale.status()!==412)throw Error('Stale proposal accepted');
+      if(scenario==='expired_after_dispatch'){
+        writeFileSync(f.expiry_operation,op.operation_id,{mode:0o600,flag:'wx'});
+        const limit=Date.now()+20000;
+        while(!existsSync(f.expiry_locked)){if(Date.now()>limit)throw Error('Uncertain-result control did not acquire its test barrier');await new Promise(ok=>setTimeout(ok,60));}
+      }
+      const pending=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===decisionPath);
+      await tool.getByRole('button',{name:decision==='approve'?'批准本次目录读取':'拒绝本次目录读取'}).click();
+      const ack=await pending;if(ack.status()!==200||(await ack.json()).decision!==decision)throw Error('Decision not accepted');
+      const entry=page.locator('section').filter({has:page.getByRole('heading',{name:run.run_id,exact:true})});
+      if(scenario==='approved'){
+        await tool.getByLabel('已提交的目录结果').getByText('input.txt · '+input.size_bytes+' 字节',{exact:true}).waitFor();
+        await page.screenshot({path:f.tool_screenshot,fullPage:true});
+      }
+      await entry.getByText(/工作区已回收/).waitFor();
+      const outcome=(await (await ctx.request.get(origin+base+'/operations')).json()).data[0];
+      const target={approved:'succeeded',rejected:'failed',expired_after_dispatch:'unknown'}[scenario];
+      if(outcome.state!==target||(target==='succeeded'?!outcome.result_artifact_id:!!outcome.result))throw Error('Unexpected terminal tool operation: '+outcome.state);
+      await page.getByRole('button',{name:'撤销目录权限',exact:true}).click();
+      await page.getByRole('button',{name:'确认撤销目录权限'}).click();
+      await page.getByText(/权限已撤销/).waitFor();
+      const redacted=await (await ctx.request.get(origin+base+'/operations')).json();
+      if(!redacted.revoked||redacted.data.some(v=>v.arguments||v.result))throw Error('Revocation did not clear tool content');
+      directoryRuns.push({scenario,decision,run_id:run.run_id,job_id:job.job_id,operation_id:op.operation_id,commit_id:op.commit_id,
+        tool_version:op.tool_version,bytes:input.size_bytes,terminal:outcome.state,revoked_content_cleared:true});
+    }
+  }
   process.stdout.write(JSON.stringify({run_id:run.run_id,workspace_id:run.workspace.workspace_id,job_id:job.job_id,quote_id:quote.quote_id,
-    input_version_id:uploaded.version_id,output_version_id:artifact.version_id,model_version:f.model,submit_posts:submissions,cancelled_job_id:queued.job_id,cancelled_run_id:second.run_id,unstarted_wallet_restored:true,unchanged_wallet_before_confirm:true,lost_confirmation_recovered:true,
+    input_version_id:uploaded.version_id,output_version_id:artifact.version_id,model_version:f.model,directory_runs:directoryRuns,submit_posts:submissions,cancelled_job_id:queued.job_id,cancelled_run_id:second.run_id,unstarted_wallet_restored:true,unchanged_wallet_before_confirm:true,lost_confirmation_recovered:true,
     max_microcredits:quote.max_amount,answer_sha256:createHash('sha256').update(output).digest('hex'),result_denied_after_delete:true})+'\n');
 }catch(error){
   if(page) {

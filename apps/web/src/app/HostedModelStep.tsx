@@ -4,10 +4,11 @@ import {Alert,Button,Card,Space} from 'antd';
 import {CloudClient} from '../api/cloud-runs';
 import {authorityKey,type UserSession} from '../api/contracts';
 import {ApiFailure} from '../api/client';
+import HostedToolApproval from './HostedToolApproval';
 import {formatCredits} from '../api/accounts';
 import type {Quote} from '../api/compute-contracts';
 const api=new CloudClient();
-const labels={awaiting_workspace:'等待工作区准备',ready_to_quote:'可以询价',submitted:'模型作业已提交',result_available:'模型答复已提交',stopped:'已停止',unavailable:'输入或答复已不可用'};
+const labels={awaiting_workspace:'等待工作区准备',ready_to_quote:'可以询价',submitted:'模型作业已提交',result_available:'模型答复已提交',stopped:'已停止',unavailable:'输入或答复已不可用',waiting_tool:'等待工具批准',tool_result_available:'工具结果已提交'};
 
 export default function HostedModelStep({session,run,invalidate}:{session:UserSession;run:string;invalidate:()=>void}){
   const step=useQuery({queryKey:[authorityKey(session),'hosted-model',run],queryFn:({signal})=>api.modelStep(session,run,signal),refetchInterval:2000});
@@ -53,6 +54,7 @@ export default function HostedModelStep({session,run,invalidate}:{session:UserSe
           })}>确认报价并提交模型作业</Button>
         </section>}
       </Space>}
+      {state.tool&&<HostedToolApproval session={session} run={run} choice={state.tool} invalidate={invalidate}/>}
       {state.job_id&&<p>模型作业 {state.job_id}</p>}
       {state.stage==='result_available'&&<Button disabled={busy} onClick={()=>void act(async()=>{
         const r=await api.committedModelResult(session,state);
