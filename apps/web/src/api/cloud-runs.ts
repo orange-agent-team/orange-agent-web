@@ -5,8 +5,10 @@ import { ComputeClient } from './compute-client';
 import { ApiFailure } from './client';
 import type {UserSession} from './contracts';
 export const profile='dev-gvisor-linux-arm64-v1';
-export interface Choice {name:'list_directory';execution_digest:string}
-export interface ToolDefinition {name:'list_directory';description:string;parameters:Record<string,unknown>}
+export const connectorNames=['list_views','describe_view','query_view','list_objects','head_object','read_object'] as const;
+export type ConnectorName=typeof connectorNames[number];
+export interface Choice {name:'list_directory'|ConnectorName;execution_digest:string}
+export interface ToolDefinition {name:Choice['name'];description:string;parameters:Record<string,unknown>}
 export interface CloudTool extends Choice {tool_version:string;policy_version:string;approval_required:true;execution_environment:'hosted_workspace';model_definition:ToolDefinition}
 export interface CloudOperation {operation_id:string;approval_id:string;tool_name:'list_directory';tool_version:string;argument_digest:string;review_digest:string;version:string;
   state:'intended'|'dispatching'|'succeeded'|'failed'|'unknown';commit_id:string;decision?:'approve'|'reject';arguments?:{path:'.';limit?:number};
@@ -38,7 +40,7 @@ const ops=validate<CloudOps>('CloudOperations');
 const decisionReceipt=validate<{run_id:string;user_id:string;owner_id:string;operation_id:string;decision:'approve'|'reject';review_digest:string}>('CloudDecisionReceipt');
 const revoked=validate<{run_id:string;user_id:string;owner_id:string;revoked:true;receipt_id:string}>('CloudCapabilityRevocation');
 interface HistoryTurn{turn_id:string;ordinal:number;invocation_id:string;input_version_id:string;parent_operation_id?:string;outcome?:'tool_request'|'final'|'stopped';
-  job?:{job_id:string;quote_id:string;max_microcredits:string;charge_microcredits:string;execution_state:string;settlement_state:string}}
+  job?:{job_id:string;quote_id:string;max_microcredits:string;charge_microcredits:string|null;execution_state:string;settlement_state:string}}
 interface History{run_id:string;user_id:string;owner_id:string;root_budget_id:string;turns:HistoryTurn[];settled_microcredits:string;pending_max_microcredits:string}
 const history=validate<History>('CloudModelHistory');
 const idPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -46,7 +48,27 @@ function component(id:string){if(!idPattern.test(id))throw Error('INVALID_IDENTI
 function owned(row:{owner_id:string;user_id:string},s:UserSession){if(row.owner_id!==s.personal_owner_id||row.user_id!==s.user_id)throw new ApiFailure(403,'ACTOR_MISMATCH');}
 function checked(raw:unknown,s:UserSession){if(!run(raw))throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');owned(raw,s);return raw;}
 const base='/api/v1/agent';
+export interface ConnectorTool extends Choice {name:ConnectorName;connector:'postgres'|'s3';model_definition:ToolDefinition}
+export interface ModelConnectorOp {run_id:string;job_id:string;commit_id:string;tool:ConnectorName;connector:'postgres'|'s3';execution_digest:string;operation_id:string;call_id:string;argument_digest:string;arguments?:Record<string,unknown>;state:'waiting_approval'|'dispatching'|'succeeded'|'failed'|'rejected'|'unknown';grant_id?:string;result?:{kind:'external_untrusted_data';data:Record<string,unknown>};source_unavailable?:true}
+const connectorTools=validate<{user_id:string;owner_id:string;tools:ConnectorTool[]}>('HostedConnectorTools');
+const connectorOp=validate<ModelConnectorOp>('HostedConnectorOperation');
 export class CloudClient extends ComputeClient {
+  async connectorTools(s:UserSession,signal?:AbortSignal){
+    const raw=await this.call('/api/v1/agent/connector-tools',{signal});
+    if(!connectorTools(raw)||raw.tools.some(t=>t.name!==t.model_definition.name))throw new ApiFailure(200,'INVALID_RESPONSE');
+    owned(raw,s);return raw.tools;
+  }
+  async modelConnector(run:string,choice:Choice,signal?:AbortSignal){
+    const raw=await this.call(base+'/runs/'+component(run)+'/model/connector',{signal});
+    if(!connectorOp(raw)||raw.run_id!==run||raw.tool!==choice.name||raw.execution_digest!==choice.execution_digest)throw new ApiFailure(200,'INVALID_RESPONSE');
+    return raw;
+  }
+  async decideModelConnector(session:UserSession,op:ModelConnectorOp,decision:'approve'|'reject',grant:string|undefined,key:string){
+    const raw=await this.call(base+'/runs/'+component(op.run_id)+'/model/connector',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':session.csrf_token,'Idempotency-Key':key},
+      body:JSON.stringify({operation_id:op.operation_id,argument_digest:op.argument_digest,decision,...(decision==='approve'?{grant_id:grant}:{})})});
+    if(!connectorOp(raw)||raw.run_id!==op.run_id||raw.operation_id!==op.operation_id||raw.argument_digest!==op.argument_digest)throw new ApiFailure(200,'INVALID_RESPONSE');
+    return raw;
+  }
   async cloudTools(s:UserSession,signal?:AbortSignal){
     const raw=await this.call(base+'/workspace-tools',{signal});
     if(!toolList(raw))throw new ApiFailure(200,'INVALID_RESPONSE');owned(raw,s);return raw.tools;

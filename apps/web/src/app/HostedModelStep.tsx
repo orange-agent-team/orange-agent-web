@@ -4,6 +4,7 @@ import {Alert,Button,Card,Space} from 'antd';
 import {CloudClient} from '../api/cloud-runs';
 import {authorityKey,type UserSession} from '../api/contracts';
 import {ApiFailure} from '../api/client';
+import ModelConnectorApproval from './ModelConnectorApproval';
 import HostedToolApproval from './HostedToolApproval';
 import {formatCredits} from '../api/accounts';
 import type {Quote} from '../api/compute-contracts';
@@ -59,7 +60,8 @@ export default function HostedModelStep({session,run,invalidate}:{session:UserSe
           })}>确认报价并提交模型作业</Button>
         </section>}
       </Space>}
-      {state.tool&&<HostedToolApproval session={session} run={run} choice={state.tool} invalidate={invalidate}/>}
+      {state.tool&&state.tool.name!=='list_directory'&&<ModelConnectorApproval session={session} run={run} choice={state.tool} stage={state.stage}/>}
+      {state.tool?.name==='list_directory'&&<HostedToolApproval session={session} run={run} choice={state.tool} invalidate={invalidate}/>}
       {state.job_id&&<p>模型作业 {state.job_id}</p>}
       {state.stage==='result_available'&&<Button disabled={busy} onClick={()=>void act(async()=>{
         const r=await api.committedModelResult(session,state);
@@ -69,7 +71,7 @@ export default function HostedModelStep({session,run,invalidate}:{session:UserSe
     </>}
     {history.data&&!history.error&&<section aria-label="模型回合账目"><h3>模型回合账目</h3>
       <p>已结算 {history.data.settled_microcredits} 微积分 · 待结算上限 {history.data.pending_max_microcredits} 微积分</p>
-      {history.data.turns.map(t=><p key={t.turn_id}>第 {t.ordinal} 回合 · {t.invocation_id}{t.job?' · '+t.job.charge_microcredits+' 微积分 · '+t.job.settlement_state:''}</p>)}
+      {history.data.turns.map(t=><p key={t.turn_id}>第 {t.ordinal} 回合 · {t.invocation_id}{t.job?' · '+(t.job.charge_microcredits===null?'待结算，上限 '+t.job.max_microcredits:t.job.charge_microcredits)+' 微积分 · '+t.job.settlement_state:''}</p>)}
     </section>}
     {issue&&<Alert type="warning" title={issue}/>}
   </Card>;

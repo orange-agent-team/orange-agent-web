@@ -1,3 +1,4 @@
+import {exerciseConnectorModel} from './real-model-connector.mjs';
 import {continueModel} from './real-continuation.mjs';
 // Entire built portal, actual platform workspace and a distinct CPU inference
 // Worker. Follow the user's explicit quote approval before any spending effect.
@@ -112,6 +113,10 @@ try{
   await page.getByRole('button',{name:'确认报价并提交模型作业'}).click();
   const cr=await secondCommit,queued=await cr.json();
   if(cr.status()!==200||queued.execution_state!=='queued')throw Error('Controlled second Job did not reserve');
+  const pendingHistory=await ctx.request.get(origin+secondPath+'/history');
+  const history=await pendingHistory.json(),pendingJob=history.turns?.[0]?.job;
+  if(pendingHistory.status()!==200||pendingJob?.job_id!==queued.job_id||pendingJob?.settlement_state!=='pending'||pendingJob?.charge_microcredits!==null||
+      history.settled_microcredits!=='0'||history.pending_max_microcredits!==quoted.max_amount)throw Error('Pending model history misrepresents the reserve or charge');
   const secondEntry=page.locator('section').filter({has:page.getByRole('heading',{name:second.run_id,exact:true})});
   await secondEntry.getByRole('button',{name:'取消运行'}).click();
   const stopped=page.waitForResponse(r=>r.request().method()==='DELETE'&&new URL(r.url()).pathname==='/api/v1/agent/runs/'+second.run_id);
@@ -178,8 +183,9 @@ try{
         tool_version:op.tool_version,bytes:input.size_bytes,terminal:outcome.state,revoked_content_cleared:true});
     }
   }
-  process.stdout.write(JSON.stringify({run_id:run.run_id,workspace_id:run.workspace.workspace_id,job_id:job.job_id,quote_id:quote.quote_id,
-    input_version_id:uploaded.version_id,output_version_id:artifact.version_id,model_version:f.model,directory_runs:directoryRuns,submit_posts:submissions,cancelled_job_id:queued.job_id,cancelled_run_id:second.run_id,unstarted_wallet_restored:true,unchanged_wallet_before_confirm:true,lost_confirmation_recovered:true,
+  const connectorRuns=f.connector_case?await exerciseConnectorModel({page,ctx,origin,f,headers}):[];
+  process.stdout.write(JSON.stringify({connector_runs:connectorRuns,run_id:run.run_id,workspace_id:run.workspace.workspace_id,job_id:job.job_id,quote_id:quote.quote_id,
+    input_version_id:uploaded.version_id,output_version_id:artifact.version_id,model_version:f.model,pending_history_verified:true,directory_runs:directoryRuns,submit_posts:submissions,cancelled_job_id:queued.job_id,cancelled_run_id:second.run_id,unstarted_wallet_restored:true,unchanged_wallet_before_confirm:true,lost_confirmation_recovered:true,
     max_microcredits:quote.max_amount,answer_sha256:createHash('sha256').update(output).digest('hex'),result_denied_after_delete:true})+'\n');
 }catch(error){
   if(page) {

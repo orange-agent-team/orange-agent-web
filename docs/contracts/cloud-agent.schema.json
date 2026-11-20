@@ -346,7 +346,35 @@
         "invocation_id",
         "output_limit"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "continue_after_tool": {
+                "const": true
+              }
+            },
+            "required": [
+              "continue_after_tool"
+            ]
+          },
+          "then": {
+            "required": [
+              "tool"
+            ],
+            "properties": {
+              "tool": {
+                "properties": {
+                  "name": {
+                    "const": "list_directory"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "CloudModelStatus": {
       "type": "object",
@@ -786,7 +814,15 @@
       ],
       "properties": {
         "name": {
-          "const": "list_directory"
+          "enum": [
+            "list_directory",
+            "list_views",
+            "describe_view",
+            "query_view",
+            "list_objects",
+            "head_object",
+            "read_object"
+          ]
         },
         "execution_digest": {
           "type": "string",
@@ -1271,8 +1307,15 @@
               "pattern": "^(0|[1-9][0-9]*)$"
             },
             "charge_microcredits": {
-              "type": "string",
-              "pattern": "^(0|[1-9][0-9]*)$"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "execution_state": {
               "type": "string"
@@ -1288,6 +1331,25 @@
             "charge_microcredits",
             "execution_state",
             "settlement_state"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "settlement_state": {
+                    "const": "settled"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "charge_microcredits": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  }
+                }
+              }
+            }
           ]
         }
       },
@@ -1350,6 +1412,264 @@
         "turns",
         "settled_microcredits",
         "pending_max_microcredits"
+      ]
+    },
+    "HostedConnectorTool": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "enum": [
+            "list_views",
+            "describe_view",
+            "query_view",
+            "list_objects",
+            "head_object",
+            "read_object"
+          ]
+        },
+        "connector": {
+          "enum": [
+            "postgres",
+            "s3"
+          ]
+        },
+        "execution_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "tool_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "execution_environment": {
+          "const": "platform_connector"
+        },
+        "approval_required": {
+          "const": true
+        },
+        "model_definition": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "enum": [
+                "list_views",
+                "describe_view",
+                "query_view",
+                "list_objects",
+                "head_object",
+                "read_object"
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "parameters"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "connector",
+        "execution_digest",
+        "tool_version",
+        "execution_environment",
+        "approval_required",
+        "model_definition"
+      ],
+      "additionalProperties": false
+    },
+    "HostedConnectorTools": {
+      "type": "object",
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "tools": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/HostedConnectorTool"
+          }
+        }
+      },
+      "required": [
+        "owner_id",
+        "user_id",
+        "tools"
+      ],
+      "additionalProperties": false
+    },
+    "HostedConnectorOperation": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "commit_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "tool": {
+          "enum": [
+            "list_views",
+            "describe_view",
+            "query_view",
+            "list_objects",
+            "head_object",
+            "read_object"
+          ]
+        },
+        "connector": {
+          "enum": [
+            "postgres",
+            "s3"
+          ]
+        },
+        "execution_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "operation_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "call_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "argument_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "state": {
+          "enum": [
+            "waiting_approval",
+            "dispatching",
+            "succeeded",
+            "rejected",
+            "failed",
+            "unknown"
+          ]
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "external_untrusted_data"
+            },
+            "data": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "source_unavailable": {
+          "const": true
+        }
+      },
+      "required": [
+        "run_id",
+        "job_id",
+        "commit_id",
+        "tool",
+        "connector",
+        "execution_digest",
+        "operation_id",
+        "call_id",
+        "argument_digest",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "HostedConnectorReview": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "argument_digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "decision": {
+              "const": "approve"
+            },
+            "grant_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "operation_id",
+            "argument_digest",
+            "decision",
+            "grant_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "argument_digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "decision": {
+              "const": "reject"
+            }
+          },
+          "required": [
+            "operation_id",
+            "argument_digest",
+            "decision"
+          ],
+          "additionalProperties": false
+        }
       ]
     }
   }
