@@ -4,6 +4,7 @@ import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, type Artifact, typ
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
+const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audio/flac':'flac', 'audio/mpeg':'mp3', 'audio/ogg':'ogg', 'audio/mp4':'mov' };
 const base = (session: UserSession) => `/api/v1/owners/${pathId(session.personal_owner_id)}`;
 export class ComputeClient extends UserClient {
  async prices(signal?: AbortSignal) {
@@ -46,15 +47,19 @@ export class ComputeClient extends UserClient {
  }
  async measureAudio(session: UserSession, input: Artifact, signal?: AbortSignal) {
   this.ownedArtifact(session, input);
-  if (input.state !== 'available' || !input.media_type.startsWith('audio/')) throw new Error('INVALID_AUDIO');
+  if (input.state !== 'available' || !audioFormats[input.media_type]) throw new Error('INVALID_AUDIO');
   const data = await this.call(`${base(session)}/uploads/${pathId(input.upload_id)}/transcription-measurements`, {
    method:'POST', headers:write(session,input.upload_id), body:JSON.stringify({version_id:input.version_id}), signal,
   }, 200, 90000);
   const result = decodeCompute('AudioMeasurement', data);
+  if (result.source_samples.length > 9 || result.normalized_samples.length > 7 || result.duration_ms.length > 6) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   const rate = BigInt(result.source_sample_rate), samples = BigInt(result.source_samples);
+  const normalized = BigInt(result.normalized_samples);
+  const difference = normalized * rate - samples * 16000n;
   const duration = (samples * 1000n + rate - 1n) / rate;
   if (result.artifact_id !== input.artifact_id || result.version_id !== input.version_id || result.audio_sha256 !== input.sha256 ||
-      duration !== BigInt(result.duration_ms) || duration > 600000n || BigInt(result.normalized_samples) > 9600000n) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+      result.format !== audioFormats[input.media_type] || duration !== BigInt(result.duration_ms) || duration > 600000n ||
+      normalized > 9600000n || difference > 2n*rate || difference < -2n*rate) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return result;
  }
  async quote(session: UserSession, request: QuoteRequest) {

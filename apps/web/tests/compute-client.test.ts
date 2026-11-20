@@ -52,3 +52,22 @@ describe('fixed-contract model Job client', () => {
   await expect(new ComputeClient(fetcher).resultText(session,{ ...artifact, size_bytes: '1048577' })).rejects.toThrow(); expect(fetcher).not.toHaveBeenCalled();
  });
 });
+
+describe('immutable audio measurement', () => {
+ it('checks the actual version, input digest, container, decoded duration and resampling counts', async () => {
+  const input = await descriptor(new Uint8Array([0,1,2]), 'audio/wav');
+  const measured = {artifact_id:input.artifact_id, version_id:input.version_id, audio_sha256:input.sha256,
+   model_version:'whisper-small-ct2-int8-cpu-v1', preprocessing:'mono-16khz-s16-f32-v1', format:'wav',
+   codec:'pcm_s16le', source_sample_rate:16000, source_samples:'17', normalized_samples:'17',
+   normalized_sha256:'c'.repeat(64), duration_ms:'2'};
+  const fetcher = vi.fn(async () => json(measured));
+  await expect(new ComputeClient(fetcher).measureAudio(session,input)).resolves.toEqual(measured);
+  expect(fetcher).toHaveBeenCalledWith('/api/v1/owners/owner/uploads/upload%3Aoriginal/transcription-measurements',
+    expect.objectContaining({method:'POST',body:JSON.stringify({version_id:input.version_id})}));
+  for (const changed of [{duration_ms:'1'},{normalized_samples:'9'},{source_samples:'1234567890'},
+    {artifact_id:'other'},{version_id:'other'},{audio_sha256:'a'.repeat(64)},{format:'ogg'},{charge:'1'}]) {
+    const invalid = new ComputeClient(async () => json({...measured,...changed}));
+    await expect(invalid.measureAudio(session,input)).rejects.toThrow();
+  }
+ });
+});
