@@ -138,6 +138,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/repositories/github`}>GitHub 仓库授权</Link>
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/repositories/gitlab`}>GitLab 项目授权</Link>
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/notion`}>Notion 文档授权</Link>
+      <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/confluence`}>Confluence 空间授权</Link>
       <Button onClick={()=>setModelRun(row.run_id)}>查看模型步骤</Button>
       {!['cancelled','failed','completed'].includes(row.status)&&(cancelId===row.run_id?<Space><Button danger disabled={working} onClick={()=>void cancel(row.run_id)}>确认取消</Button>
         <Button disabled={working} onClick={()=>setCancelId(undefined)}>返回</Button></Space>:<Button disabled={working} onClick={()=>setCancelId(row.run_id)}>取消运行</Button>)}
