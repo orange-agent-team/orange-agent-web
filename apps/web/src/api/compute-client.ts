@@ -1,6 +1,6 @@
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
-import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, type AudioGrantRequest, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
+import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
@@ -134,8 +134,29 @@ export class ComputeClient extends UserClient {
   return this.ownedArtifact(session,value);
  }
  async resultText(session: UserSession, artifact: Artifact, external?: AbortSignal) {
+  const result=decodeCompute('Result',await this.resultJson(session,artifact,MODEL_RESPONSE_MEDIA,1048576n,external));
+  if(result.finish_reason!=='stop'||result.tool_calls.length)throw new Error('UNREQUESTED_MODEL_TOOL');
+  return result.text;
+ }
+ async resultDocument(session:UserSession,artifact:Artifact,signal?:AbortSignal){
+  if(artifact.media_type!==TRANSCRIPTION_MEDIA)return {kind:'text' as const,text:await this.resultText(session,artifact,signal)};
+  const result=decodeCompute('TranscriptionResult',await this.resultJson(session,artifact,TRANSCRIPTION_MEDIA,2097152n,signal));
+  const measurement=result.measurement;
+  if(measurement.duration_ms.length>6||measurement.source_samples.length>9||measurement.normalized_samples.length>7)throw new Error('INVALID_TRANSCRIPT');
+  const duration=BigInt(measurement.duration_ms),rate=BigInt(measurement.source_sample_rate),samples=BigInt(measurement.source_samples);
+  const delta=BigInt(measurement.normalized_samples)*rate-samples*16000n;
+  if(duration>600000n||(samples*1000n+rate-1n)/rate!==duration||delta>2n*rate||delta< -2n*rate)throw new Error('INVALID_TRANSCRIPT');
+  let last=0;
+  for(const segment of result.segments){
+   if(segment.start_ms<last||segment.end_ms<segment.start_ms||segment.end_ms>Number(duration))throw new Error('INVALID_TRANSCRIPT_TIMING');
+   last=segment.end_ms;
+  }
+  if(!result.text.trim()||result.segments.map(s=>s.text).join('').trim()!==result.text)throw new Error('INVALID_TRANSCRIPT_TEXT');
+  return {kind:'transcription' as const,text:result.text,transcript:result};
+ }
+ private async resultJson(session:UserSession,artifact:Artifact,media:string,max:bigint,external?:AbortSignal):Promise<unknown>{
   this.ownedArtifact(session,artifact);
-  if (artifact.state !== 'available' || artifact.media_type !== MODEL_RESPONSE_MEDIA || BigInt(artifact.size_bytes) < 1n || BigInt(artifact.size_bytes) > 1048576n) throw new Error('INVALID_RESULT_DESCRIPTOR');
+  if (artifact.state !== 'available' || artifact.media_type !== media || BigInt(artifact.size_bytes) < 1n || BigInt(artifact.size_bytes) > max) throw new Error('INVALID_RESULT_DESCRIPTOR');
   const deadline = new AbortController(), cancel = () => deadline.abort();
   if (external?.aborted) cancel(); else external?.addEventListener('abort',cancel,{ once: true });
   const timer = setTimeout(cancel,30000);
@@ -152,9 +173,9 @@ export class ComputeClient extends UserClient {
    if (size !== Number(artifact.size_bytes)) throw new Error('RESULT_LENGTH_MISMATCH');
    const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk,offset); offset += chunk.length; }
    if (await sha256(bytes) !== artifact.sha256) throw new Error('RESULT_HASH_MISMATCH');
-   const result = decodeCompute('Result',JSON.parse(new TextDecoder('utf-8',{ fatal: true }).decode(bytes)));
-   if (result.finish_reason !== 'stop' || result.tool_calls.length) throw new Error('UNREQUESTED_MODEL_TOOL');
-   if (external?.aborted) throw new DOMException('aborted','AbortError'); return result.text;
+   const result:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+   if(external?.aborted)throw new DOMException('aborted','AbortError');
+   return result;
   } finally { clearTimeout(timer); external?.removeEventListener('abort',cancel); }
  }
 }

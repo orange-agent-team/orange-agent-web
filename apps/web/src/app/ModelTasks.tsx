@@ -45,7 +45,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
   const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.job(session, selected!, signal), enabled: Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
   const result = useQuery({ queryKey: [scope, 'job-result', selected], enabled: current.data?.execution_state === 'succeeded' && !current.error,
-    queryFn: async ({ signal }) => api.resultText(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
+    queryFn: async ({ signal }) => api.resultDocument(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
   const offer = !prices.error ? prices.data?.find(row => row.price_version === price) : undefined;
   const activeBudgets = !budgets.error ? budgets.data?.data.filter(row => row.status === 'active') ?? [] : [];
   const count = /^[1-9][0-9]{0,3}$/.test(output) ? Number(output) : 0;
@@ -118,7 +118,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
     catch (error) { setFailure(error); }
   };
   const visibleJob = !current.error ? current.data : undefined;
-  const showText = !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
+  const verifiedDocument = !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
   return <>
     <div className="page-heading"><div><p className="eyebrow">MODEL TASKS</p><h1>模型任务</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><div><Link to="/tasks/audio">音频预检</Link> <Button onClick={refresh}>刷新任务</Button></div></div>
     {recoveryError && <Alert type="error" showIcon title="本地恢复记录无法核对" description="创建入口已关闭，你仍可在任务列表中查询现有任务。" />}
@@ -148,7 +148,11 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
           {visibleJob.execution_state === 'cancelling' && <p>取消请求已接收，执行终止和积分释放仍待确认。</p>}
           {result.error && <Alert type="warning" showIcon title="结果暂不可读" description={failureText(result.error)} />}
           {result.isFetching && <Spin aria-label="正在核对结果权限" />}
-          {showText !== undefined && <pre data-testid="model-result-text">{showText}</pre>}
+          {verifiedDocument && <pre data-testid="model-result-text">{verifiedDocument.text}</pre>}
+          {verifiedDocument?.kind==='transcription'&&<details><summary>查看转写时间段</summary>
+            <p>语言 {verifiedDocument.transcript.language} · 解码时长 {verifiedDocument.transcript.measurement.duration_ms} 毫秒</p>
+            <ol>{verifiedDocument.transcript.segments.map((s,i)=><li key={i}><span>{s.start_ms}–{s.end_ms} 毫秒</span> {s.text}</li>)}</ol>
+          </details>}
         </>}
       </Card>}
     </section><aside><Card><h2>我的任务</h2>{jobs.error ? <Alert type="warning" title="任务列表暂不可用" /> : jobs.isPending ? <Spin /> : jobs.data && <>

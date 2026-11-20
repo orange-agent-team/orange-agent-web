@@ -1,4 +1,5 @@
 import {chromium} from '@playwright/test';
+import {createHash} from 'node:crypto';
 import {preview} from 'vite';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -16,7 +17,24 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});
  const ctx=await browser.newContext({baseURL:f.origin,ignoreHTTPSErrors:true,viewport:{width:1200,height:1100}});
  await ctx.addCookies([{name:'__Host-orange-user',value:f.token,url:f.origin,secure:true,httpOnly:true,sameSite:'Lax'}]);
- const page=await ctx.newPage();page.setDefaultTimeout(20000);await page.goto('/tasks/audio');
+ const page=await ctx.newPage();page.setDefaultTimeout(20000);if(f.job){
+  await page.goto('/tasks');
+  await page.getByRole('button',{name:'查看任务 '+f.job,exact:true}).click();
+  const text=await page.getByTestId('model-result-text').innerText();
+  if(createHash('sha256').update(text).digest('hex')!==f.transcript_sha)throw Error('Unexpected transcript content');
+  await page.getByText('查看转写时间段',{exact:true}).click();
+  await page.getByText('语言 en · 解码时长 11000 毫秒',{exact:true}).waitFor();
+  if(await page.locator('details ol li').count()!==f.segments)throw Error('Segment count changed');
+  await page.screenshot({path:f.screenshot,fullPage:true});
+  const removed=await ctx.request.delete('/api/v1/owners/'+encodeURIComponent(f.owner)+'/uploads/'+encodeURIComponent(f.upload),
+    {headers:{Origin:f.origin,'X-CSRF-Token':f.csrf,'Idempotency-Key':f.upload}});
+  if(removed.status()!==200||(await removed.json()).state!=='deleted')throw Error('Could not delete source');
+  await page.getByRole('button',{name:'刷新任务'}).click();
+  await page.getByText('结果暂不可读',{exact:true}).waitFor();
+  if(await page.getByTestId('model-result-text').count()||await page.locator('details ol li').count())throw Error('Deleted source reexposed transcript');
+  console.log(JSON.stringify({real_chrome_transcript:true,artifact_and_text_digest_verified:true,segments:f.segments,source_deletion_hides_result:true}));
+ }else{
+ await page.goto('/tasks/audio');
  await page.getByLabel('上传编号').fill(f.upload);await page.getByRole('button',{name:'预检已有音频'}).click();await page.getByText('11000 毫秒',{exact:true}).waitFor();
  await page.getByLabel('节点观测编号').fill(f.observation);await page.getByRole('button',{name:'核对转写节点'}).click();await page.getByText(f.node,{exact:true}).waitFor();
  await page.getByText(f.region,{exact:true}).waitFor();await page.getByLabel('预算编号').fill(f.budget);
@@ -43,4 +61,5 @@ try{
  await page.reload();await page.getByText('授权已撤回',{exact:true}).waitFor();
  if(calls!==1)throw Error('Unexpected consent creation on reload');
  console.log(JSON.stringify({real_chrome:true,explicit_target_and_consent:true,recovered_after_lost_response:true,create_calls:calls,withdrawal_survives_reload:true}));
+ }
 } finally {await browser?.close();await server.close();}

@@ -121,7 +121,8 @@
             "audio/ogg",
             "audio/mp4",
             "video/mp4",
-            "application/vnd.orange.model-response+json"
+            "application/vnd.orange.model-response+json",
+            "application/vnd.orange.transcription+json"
           ]
         },
         "artifact_id": {
@@ -1063,6 +1064,186 @@
         "state"
       ],
       "additionalProperties": false
+    },
+    "TranscriptionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "request_projection_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "execution_profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "measurement": {
+          "$ref": "#/$defs/AudioMeasurement"
+        },
+        "language": {
+          "enum": [
+            "af",
+            "am",
+            "ar",
+            "as",
+            "az",
+            "ba",
+            "be",
+            "bg",
+            "bn",
+            "bo",
+            "br",
+            "bs",
+            "ca",
+            "cs",
+            "cy",
+            "da",
+            "de",
+            "el",
+            "en",
+            "es",
+            "et",
+            "eu",
+            "fa",
+            "fi",
+            "fo",
+            "fr",
+            "gl",
+            "gu",
+            "ha",
+            "haw",
+            "he",
+            "hi",
+            "hr",
+            "ht",
+            "hu",
+            "hy",
+            "id",
+            "is",
+            "it",
+            "ja",
+            "jw",
+            "ka",
+            "kk",
+            "km",
+            "kn",
+            "ko",
+            "la",
+            "lb",
+            "ln",
+            "lo",
+            "lt",
+            "lv",
+            "mg",
+            "mi",
+            "mk",
+            "ml",
+            "mn",
+            "mr",
+            "ms",
+            "mt",
+            "my",
+            "ne",
+            "nl",
+            "nn",
+            "no",
+            "oc",
+            "pa",
+            "pl",
+            "ps",
+            "pt",
+            "ro",
+            "ru",
+            "sa",
+            "sd",
+            "si",
+            "sk",
+            "sl",
+            "sn",
+            "so",
+            "sq",
+            "sr",
+            "su",
+            "sv",
+            "sw",
+            "ta",
+            "te",
+            "tg",
+            "th",
+            "tk",
+            "tl",
+            "tr",
+            "tt",
+            "uk",
+            "ur",
+            "uz",
+            "vi",
+            "yi",
+            "yo",
+            "zh"
+          ]
+        },
+        "language_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "compute_type": {
+          "enum": [
+            "int8",
+            "int8_float32"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "start_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "end_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 600000
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1048576
+              }
+            },
+            "required": [
+              "start_ms",
+              "end_ms",
+              "text"
+            ]
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1048576
+        }
+      },
+      "required": [
+        "version",
+        "request_projection_digest",
+        "execution_profile_digest",
+        "measurement",
+        "language",
+        "language_probability",
+        "compute_type",
+        "segments",
+        "text"
+      ]
     }
   }
 }
