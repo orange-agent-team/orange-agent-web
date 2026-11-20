@@ -40,6 +40,7 @@
             "audio/mpeg",
             "audio/flac",
             "audio/ogg",
+            "audio/mp4",
             "video/mp4"
           ]
         }
@@ -57,6 +58,7 @@
                   "audio/mpeg",
                   "audio/flac",
                   "audio/ogg",
+                  "audio/mp4",
                   "video/mp4"
                 ]
               }
@@ -117,6 +119,7 @@
             "audio/mpeg",
             "audio/flac",
             "audio/ogg",
+            "audio/mp4",
             "video/mp4",
             "application/vnd.orange.model-response+json"
           ]
@@ -161,6 +164,7 @@
                   "audio/mpeg",
                   "audio/flac",
                   "audio/ogg",
+                  "audio/mp4",
                   "video/mp4"
                 ]
               }

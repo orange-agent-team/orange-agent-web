@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange private artifact API",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "description": "Current user sessions and independent artifact/source content ACLs. Includes committed Worker response references. Model execution success does not imply settlement or resource cleanup. Native usage is never a billing grant."
   },
   "paths": {
@@ -1052,6 +1052,7 @@
               "audio/mpeg",
               "audio/flac",
               "audio/ogg",
+              "audio/mp4",
               "video/mp4"
             ]
           }
@@ -1069,6 +1070,7 @@
                     "audio/mpeg",
                     "audio/flac",
                     "audio/ogg",
+                    "audio/mp4",
                     "video/mp4"
                   ]
                 }
@@ -1129,6 +1131,7 @@
               "audio/mpeg",
               "audio/flac",
               "audio/ogg",
+              "audio/mp4",
               "video/mp4",
               "application/vnd.orange.model-response+json"
             ]
@@ -1173,6 +1176,7 @@
                     "audio/mpeg",
                     "audio/flac",
                     "audio/ogg",
+                    "audio/mp4",
                     "video/mp4"
                   ]
                 }
