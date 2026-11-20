@@ -1,0 +1,1096 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "version": "0.1.0",
+    "title": "Orange Notion Run connector"
+  },
+  "paths": {
+    "/api/v1/agent/runs/{run}/connectors/notion": {
+      "get": {
+        "operationId": "listNotionSources",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inventory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "grantNotionRoots",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Consent"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{run}/connectors/notion/{grant}": {
+      "delete": {
+        "operationId": "revokeNotionGrant",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "grant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{run}/connectors/notion/{grant}/actions": {
+      "post": {
+        "operationId": "readNotionSource",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "grant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Output"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "UserSession": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "UserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-orange-user"
+      }
+    },
+    "schemas": {
+      "Source": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "roots": {
+            "type": "object",
+            "maxProperties": 100,
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "page"
+                    },
+                    "page_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "page_id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "database"
+                    },
+                    "database_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+                    },
+                    "data_sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+                      },
+                      "maxItems": 32,
+                      "minItems": 1,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "database_id",
+                    "data_sources"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "roots"
+        ],
+        "additionalProperties": false
+      },
+      "Grant": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "grant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "root_keys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "grant_id",
+          "root_keys",
+          "expires_at",
+          "revoked"
+        ],
+        "additionalProperties": false
+      },
+      "Consent": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "root_keys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "root_keys",
+          "duration_seconds"
+        ],
+        "additionalProperties": false
+      },
+      "GrantReceipt": {
+        "type": "object",
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "grant_id"
+        ],
+        "additionalProperties": false
+      },
+      "Inventory": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "maxItems": 32
+          },
+          "recent_grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            },
+            "maxItems": 100
+          },
+          "run_readable": {
+            "type": "boolean"
+          },
+          "document_access_selected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sources",
+          "recent_grants",
+          "run_readable",
+          "document_access_selected"
+        ],
+        "additionalProperties": false
+      },
+      "Filter": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "enum": [
+                  "title",
+                  "rich_text",
+                  "status",
+                  "select"
+                ]
+              },
+              "equals": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "property",
+              "kind",
+              "equals"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "enum": [
+                  "number"
+                ]
+              },
+              "equals": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "property",
+              "kind",
+              "equals"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "enum": [
+                  "checkbox"
+                ]
+              },
+              "equals": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "property",
+              "kind",
+              "equals"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Sort": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "enum": [
+              "created_time",
+              "last_edited_time"
+            ]
+          },
+          "direction": {
+            "enum": [
+              "ascending",
+              "descending"
+            ]
+          }
+        },
+        "required": [
+          "timestamp",
+          "direction"
+        ],
+        "additionalProperties": false
+      },
+      "Action": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "search_pages"
+              },
+              "query": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 6144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "query",
+              "limit"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "read_page"
+              },
+              "root": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "page": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 6144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "root"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "list_blocks"
+              },
+              "root": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 6144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 6144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "root",
+              "limit"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "query_database"
+              },
+              "root": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "data_source": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 6144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "filter": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Filter"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sort": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Sort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "root",
+              "data_source",
+              "limit"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Summary": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "last_edited_time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "page_id",
+          "title",
+          "last_edited_time"
+        ],
+        "additionalProperties": false
+      },
+      "Page": {
+        "type": "object",
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "last_edited_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "value": {}
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "projected": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "projected"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "page_id",
+          "title",
+          "last_edited_time",
+          "properties"
+        ],
+        "additionalProperties": false
+      },
+      "Block": {
+        "type": "object",
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$"
+          },
+          "type": {
+            "type": "string"
+          },
+          "last_edited_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "text": {
+            "type": "string"
+          },
+          "checked": {
+            "type": "boolean"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1024
+          },
+          "expression": {
+            "type": "string"
+          },
+          "projected": {
+            "const": false
+          },
+          "children": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6144
+          }
+        },
+        "required": [
+          "block_id",
+          "type",
+          "last_edited_time"
+        ],
+        "additionalProperties": false
+      },
+      "SearchResults": {
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "root": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "page": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              },
+              "required": [
+                "root",
+                "page"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 6144
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "pages",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "Blocks": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            },
+            "maxItems": 100
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 6144
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "blocks",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "Rows": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "handle": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 6144
+                },
+                "page": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              },
+              "required": [
+                "handle",
+                "page"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 6144
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "rows",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "Output": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "const": "external_untrusted_data"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SearchResults"
+              },
+              {
+                "$ref": "#/components/schemas/Page"
+              },
+              {
+                "$ref": "#/components/schemas/Blocks"
+              },
+              {
+                "$ref": "#/components/schemas/Rows"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

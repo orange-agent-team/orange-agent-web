@@ -15,6 +15,7 @@ const workspace={requested:'已预留',preparing:'准备中',ready:'就绪',runn
 export default function HostedRuns({session,invalidate}:{session:UserSession;invalidate:()=>void}){
   const [mode,setMode]=useState<'workspace'|'model'>('workspace'),[price,setPrice]=useState(''),[modelRun,setModelRun]=useState('');
   const [connector,setConnector]=useState<string>();
+  const [documents,setDocuments]=useState(false);
   const [external,setExternal]=useState(false);
   const [directory,setDirectory]=useState(false),[followup,setFollowup]=useState(false);
   const [outputLimit,setOutputLimit]=useState(32);
@@ -25,7 +26,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
   const [cancelId,setCancelId]=useState<string>();
   const busy=useRef(false),alive=useRef(true);
   useEffect(()=>{alive.current=true;try{
-    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setExternal(old.allow_external_connectors===true);setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);setDirectory(old.model.tool?.name==='list_directory');setConnector(old.model.tool?.name==='list_directory'?undefined:old.model.tool?.name);setFollowup(old.model.continue_after_tool===true);}}setStorageReady(true);
+    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setDocuments(old.allow_document_connectors===true);setExternal(old.allow_external_connectors===true);setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);setDirectory(old.model.tool?.name==='list_directory');setConnector(old.model.tool?.name==='list_directory'?undefined:old.model.tool?.name);setFollowup(old.model.continue_after_tool===true);}}setStorageReady(true);
   }catch{setNotice('无法核对本会话的待处理请求，已暂停创建。');}return()=>{alive.current=false;};},[session.session_id,session.user_id,session.personal_owner_id]);
   const key=authorityKey(session);
   const cap=useQuery({queryKey:[key,'cloud-capacity'],queryFn:({signal})=>api.cloudCapacity(session,signal),refetchInterval:10000});
@@ -61,7 +62,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       const bytes=new TextEncoder().encode(source);
       if(!current){
         if(!selected||!cap.data?.can_reserve||!prompt.trim()||!bytes.length||bytes.length>262144)throw Error('INPUT_REQUIRED');
-        current={v:1,owner:session.personal_owner_id,user:session.user_id,session:session.session_id,key:crypto.randomUUID(),budget:selected,ttl,model,definition,...(external?{allow_external_connectors:true as const}:{}),
+        current={v:1,owner:session.personal_owner_id,user:session.user_id,session:session.session_id,key:crypto.randomUUID(),budget:selected,ttl,model,definition,...(documents?{allow_document_connectors:true as const}:{}),...(external?{allow_external_connectors:true as const}:{}),
           upload:{upload_id:crypto.randomUUID(),media_type:model?'application/json':'text/plain',sha256:await sha256(bytes),size_bytes:String(bytes.length)}};
         save(current);
       }
@@ -86,7 +87,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       if(!alive.current)return;
       if(!current.prepared)throw Error('INPUT_UNAVAILABLE');
       complete(await api.createRun(session,current.key,{root_budget_id:current.budget,input_artifact_id:current.prepared.artifact,
-        input_version_id:current.prepared.version,workspace_ttl_seconds:current.ttl,resource_profile_id:profile,...(current.allow_external_connectors?{allow_external_connectors:true as const}:{}),...(current.model?{model:current.model}:{})}),current);
+        input_version_id:current.prepared.version,workspace_ttl_seconds:current.ttl,resource_profile_id:profile,...(current.allow_document_connectors?{allow_document_connectors:true as const}:{}),...(current.allow_external_connectors?{allow_external_connectors:true as const}:{}),...(current.model?{model:current.model}:{})}),current);
     }catch(e){if(alive.current)failure(e);}
     finally{busy.current=false;if(alive.current)setWorking(false);}
   }
@@ -122,6 +123,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       precision={0} disabled={working||!!intent} value={Math.min(outputLimit,Number(resolvedPrice?.output_limit??4096))} onChange={v=>setOutputLimit(v??1)}/></label>}
     {mode==='model'&&!intent&&!prices.isFetching&&!resolvedPrice&&<Alert type="warning" title="当前没有可用的审核推理价格"/>}
     <label>工作区期限<Select aria-label="工作区期限" value={ttl} disabled={working||!!intent} onChange={setTtl} options={[{value:300,label:'5 分钟'},{value:900,label:'15 分钟'},{value:3600,label:'1 小时'}]}/></label>
+    <Checkbox checked={documents} disabled={working||!!intent} onChange={e=>setDocuments(e.target.checked)}>允许此运行向已登记的第三方文档发送查询</Checkbox>
     <Checkbox checked={external} disabled={working||!!intent} onChange={e=>setExternal(e.target.checked)}>允许此运行向已登记的第三方仓库发送查询</Checkbox>
     <label>运行输入<Input.TextArea aria-label="运行输入" value={prompt} disabled={working||!!intent?.prepared} maxLength={262144} onChange={e=>setPrompt(e.target.value)}/></label>
     <Button type="primary" loading={working} disabled={!storageReady||(!intent&&(!cap.data?.can_reserve||!selected||!prompt.trim()||(mode==='model'&&(!resolvedPrice||((directory||!!connector)&&!selectedTool)))))} onClick={()=>void reserve()}>{intent?'继续原请求':'保存输入并预留工作区'}</Button>
@@ -135,6 +137,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/s3`}>S3 数据源授权</Link>
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/repositories/github`}>GitHub 仓库授权</Link>
       <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/repositories/gitlab`}>GitLab 项目授权</Link>
+      <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/notion`}>Notion 文档授权</Link>
       <Button onClick={()=>setModelRun(row.run_id)}>查看模型步骤</Button>
       {!['cancelled','failed','completed'].includes(row.status)&&(cancelId===row.run_id?<Space><Button danger disabled={working} onClick={()=>void cancel(row.run_id)}>确认取消</Button>
         <Button disabled={working} onClick={()=>setCancelId(undefined)}>返回</Button></Space>:<Button disabled={working} onClick={()=>setCancelId(row.run_id)}>取消运行</Button>)}

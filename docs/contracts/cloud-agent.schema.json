@@ -62,6 +62,10 @@
         "allow_external_connectors": {
           "type": "boolean",
           "default": false
+        },
+        "allow_document_connectors": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [

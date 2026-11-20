@@ -1,7 +1,7 @@
 {
-  "version": "0.12.0",
+  "version": "0.13.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "7bd6bc7f0b6914623bfbe92245a4196a5870cfd5",
+  "source_commit": "5fc852eff00d80071d4415163f50a2772122e920",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
@@ -37,11 +37,11 @@
     },
     "cloud-agent.schema.json": {
       "source": "contracts/json-schema/cloud-agent.schema.json",
-      "sha256": "e8c55d25eace9de666cfa13b5bfc57fc5aae7cf81bcc5e32974380d6c0190ff2"
+      "sha256": "c7fe3a7e618bb8d883fa0dc590d7a81a65125ecdc9c8834946b5b0857e402fc7"
     },
     "cloud-agent.openapi.json": {
       "source": "contracts/openapi/cloud-agent.v1.json",
-      "sha256": "c859b18c555c2454ca5cd36c2a68a976287113b7bf6aa568a6ea1eadbcb96c64"
+      "sha256": "f84f9129dc96c53c70f1f5940af4cb8ec4abe2e6112d6547f48e26ce7988d54e"
     },
     "pg-connector.schema.json": {
       "source": "contracts/json-schema/pg-connector.schema.json",
@@ -66,6 +66,14 @@
     "repository-connector.openapi.json": {
       "source": "contracts/openapi/repository-connector.v1.json",
       "sha256": "00d499e378a122bc926a0c995ebacbb276081cd7b69d5ba89bea569957c5fea0"
+    },
+    "notion-connector.schema.json": {
+      "source": "contracts/json-schema/notion-connector.schema.json",
+      "sha256": "96ee76891e31220de5f53e3b33cacd944468a07f9ef9d70e4a9975d755f4853f"
+    },
+    "notion-connector.openapi.json": {
+      "source": "contracts/openapi/notion-connector.v1.json",
+      "sha256": "920115e24da03d000e367f388d26bef0264b0a98bce2cfc967ee308e90ad033e"
     }
   }
 }
