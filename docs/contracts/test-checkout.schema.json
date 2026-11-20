@@ -127,6 +127,204 @@
       "items": {
         "$ref": "#/$defs/TestCreditOffer"
       }
+    },
+    "TestRefundRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "refund_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[a-z]{3}$"
+        },
+        "amount_minor": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,7}$"
+        }
+      },
+      "required": [
+        "refund_id",
+        "currency",
+        "amount_minor"
+      ]
+    },
+    "TestRefundView": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "refund_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "order_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[a-z]{3}$"
+        },
+        "amount_minor": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,7}$"
+        },
+        "held_microcredits": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "authorized",
+            "approval_lost",
+            "dispatching",
+            "unknown",
+            "pending",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "review_required"
+          ]
+        }
+      },
+      "required": [
+        "refund_id",
+        "order_id",
+        "owner_id",
+        "currency",
+        "amount_minor",
+        "held_microcredits",
+        "case_id",
+        "state"
+      ]
+    },
+    "TestRefundEligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[a-z]{3}$"
+        },
+        "max_refundable_minor": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,7})$"
+        },
+        "unspent_microcredits": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "pending_refund_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "order_id",
+        "owner_id",
+        "currency",
+        "max_refundable_minor",
+        "unspent_microcredits",
+        "pending_refund_id"
+      ]
+    },
+    "TestOrderSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "order_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "state": {
+          "enum": [
+            "created",
+            "cancelled",
+            "dispatching",
+            "unknown",
+            "open",
+            "expired",
+            "paid_review",
+            "credited",
+            "review_required"
+          ]
+        },
+        "offer": {
+          "$ref": "#/$defs/TestCreditOffer"
+        }
+      },
+      "required": [
+        "order_id",
+        "state",
+        "offer"
+      ]
+    },
+    "TestOrderPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/TestOrderSummary"
+          }
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "owner_id",
+        "data",
+        "next_cursor"
+      ]
     }
   }
 }

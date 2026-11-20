@@ -37,6 +37,17 @@ try{
  await page.getByRole('button',{name:'核对付款状态'}).click();
  await page.getByText('测试积分已入账',{exact:true}).waitFor();
  if(count!==1||await page.getByRole('link',{name:'打开测试收银台'}).count())throw Error('Checkout dispatched twice or exposed after completion');
+ if(f.refunds){
+   await page.getByLabel('退款金额（最小货币单位）').fill('10');
+   await page.getByRole('button',{name:'冻结并申请测试退款'}).click();
+   await page.getByText(/^等待独立审批，余额已冻结/).waitFor();
+   await page.reload();await page.getByText(/^等待独立审批，余额已冻结/).waitFor();
+   await page.getByRole('button',{name:'取消退款申请',exact:true}).click();
+   await page.getByText(/^退款申请已取消/).waitFor();
+   await page.getByRole('button',{name:'返回测试充值'}).click();
+   await page.getByRole('button',{name:'查看测试订单 '+original,exact:true}).click();
+   await page.getByText('测试积分已入账',{exact:true}).waitFor();
+ }
  await page.screenshot({path:f.screenshot,fullPage:true});
- console.log(JSON.stringify({chrome:true,locally_cancelled:true,recovered_same_order:true,dispatches:count,authoritative_test_credit:true,visited_external_checkout:false}));
+ console.log(JSON.stringify({chrome:true,locally_cancelled:true,recovered_same_order:true,dispatches:count,authoritative_test_credit:true,visited_external_checkout:false,refund_request_recovery_and_cancel:!!f.refunds}));
 } finally {await browser?.close();await server.close();}

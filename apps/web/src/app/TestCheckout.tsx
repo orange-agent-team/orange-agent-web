@@ -4,9 +4,23 @@ import {CheckoutClient,states,validOrder,type Order,type Offer} from '../api/che
 import {ApiFailure} from '../api/client';
 import type {UserSession} from '../api/contracts';
 import {formatCredits} from '../api/accounts';
+import RefundRequest from './RefundRequest';
+import {useQuery} from '@tanstack/react-query';
 const api=new CheckoutClient();
 type Handle={id:string;offer?:string};
 const terminal=new Set(['credited','cancelled','expired']);
+
+function OrderHistory({session,open}:{session:UserSession;open:(id:string)=>void}){
+  const [pages,setPages]=useState<string[]>([]);const cursor=pages.at(-1);
+  const q=useQuery({queryKey:['test-order-history',session.session_id,cursor],queryFn:({signal})=>api.history(session,cursor,signal),retry:false});
+  if(q.error)return <Alert type="warning" title="暂时无法读取测试订单记录"/>;
+  if(!q.data?.data.length)return null;
+  return <section aria-label="测试订单记录"><h3>测试订单记录</h3>
+    {q.data.data.map(r=><p key={r.order_id}><Button aria-label={'查看测试订单 '+r.order_id} onClick={()=>open(r.order_id)}>{r.order_id}</Button> · {states[r.state]}</p>)}
+    <Space>{pages.length>0&&<Button onClick={()=>setPages(v=>v.slice(0,-1))}>上页订单</Button>}
+      {q.data.next_cursor&&<Button onClick={()=>setPages([...pages,q.data!.next_cursor!])}>下页订单</Button>}</Space>
+  </section>;
+}
 
 export default function TestCheckout({session,onCredit}:{session:UserSession;onCredit:()=>void}){
   const storage='orange.test-checkout.v1:'+JSON.stringify([session.user_id,session.personal_owner_id]);
@@ -47,11 +61,12 @@ export default function TestCheckout({session,onCredit}:{session:UserSession;onC
     }catch{if(!c.signal.aborted){setOrder(undefined);setError('结果尚未确认，请查询同一订单。');}}
     finally{if(!c.signal.aborted){active.current=null;setBusy(false);}}
   }
-  if(!handle&&!offers?.length&&!error)return null;
+  if(!handle&&!offers&&!error)return null;
   return <Card title="测试积分充值">
     <p>这里使用测试商户。到账状态以平台核对后的账本为准。</p>
     {handle?<><p>订单编号 <code>{handle.id}</code></p>
       {order&&<><p role="status">{states[order.state]}</p><p>{order.offer.amount_minor} {order.offer.currency.toUpperCase()} 最小货币单位 · {formatCredits(order.offer.microcredits)} 积分</p></>}
+      {order?.state==='credited'&&<RefundRequest key={order.order_id} order={order} session={session}/>}
       <Space wrap>
         {!order&&<Button disabled={busy||!ready} onClick={()=>void perform(handle,'get')}>查询原订单</Button>}
         {!order&&handle.offer&&<Button disabled={busy||!ready} onClick={()=>void perform(handle,'create')}>恢复原订单</Button>}
@@ -61,6 +76,7 @@ export default function TestCheckout({session,onCredit}:{session:UserSession;onC
         {order&&terminal.has(order.state)&&<Button disabled={busy} onClick={()=>{try{sessionStorage.removeItem(storage);setHandle(undefined);setOrder(undefined);setError('');const url=new URL(window.location.href);url.searchParams.delete('checkout_order');history.replaceState(history.state,'',url);}catch{setError('无法清除本机订单记录。');}}}>返回测试充值</Button>}
       </Space>
     </>:offers?.map(v=><p key={v.offer_id}>{v.amount_minor} {v.currency.toUpperCase()} 最小货币单位 · {formatCredits(v.microcredits)} 积分 <Button disabled={busy||!ready} onClick={()=>void perform({id:crypto.randomUUID(),offer:v.offer_id},'create')}>创建测试订单</Button></p>)}
+    {!handle&&offers&&<OrderHistory session={session} open={id=>{void perform({id},'get');try{sessionStorage.setItem(storage,JSON.stringify({id}));setHandle({id});}catch{setError('无法保存原订单编号。');}}}/>}
     {error&&<Alert type="warning" title={error}/>}
   </Card>;
 }
