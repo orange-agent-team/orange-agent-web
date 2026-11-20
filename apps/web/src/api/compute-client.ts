@@ -16,9 +16,9 @@ export class ComputeClient extends UserClient {
   if (artifact.owner_id !== session.personal_owner_id || (upload !== undefined && artifact.upload_id !== upload)) throw new ApiFailure(403, 'ACTOR_MISMATCH');
   return artifact;
  }
- async beginUpload(session: UserSession, request: Upload) {
+ async beginUpload(session: UserSession, request: Upload, signal?: AbortSignal) {
   decodeCompute('Upload', request);
-  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads`, { method: 'POST', headers: write(session, request.upload_id), body: JSON.stringify(request) }), request.upload_id);
+  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads`, { method: 'POST', headers: write(session, request.upload_id), body: JSON.stringify(request), signal }), request.upload_id);
   if (artifact.sha256 !== request.sha256 || artifact.size_bytes !== request.size_bytes || artifact.media_type !== request.media_type) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE'); return artifact;
  }
  async deleteUpload(session: UserSession, upload: string) {
@@ -32,9 +32,30 @@ export class ComputeClient extends UserClient {
   decodeCompute('Upload', request);
   if (bytes.byteLength === 0 || bytes.byteLength > 262144 || request.size_bytes !== bytes.byteLength.toString() || request.sha256 !== await sha256(bytes)) throw new Error('INPUT_BYTES_CHANGED');
   const owned = new Uint8Array(bytes.byteLength); owned.set(bytes);
-  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads/${pathId(request.upload_id)}/content`, { method: 'PUT', headers: { ...write(session,request.upload_id), 'Content-Type': 'application/octet-stream' }, body: owned.buffer }),request.upload_id);
+  return this.putContent(session, request, owned.buffer);
+ }
+ async putAudio(session: UserSession, request: Upload, file: File, signal: AbortSignal) {
+  decodeCompute('Upload', request);
+  if (!request.media_type.startsWith('audio/') || file.size < 1 || file.size > 100000000 || request.size_bytes !== String(file.size)) throw new Error('INVALID_AUDIO');
+  return this.putContent(session, request, file, signal, 300000);
+ }
+ private async putContent(session: UserSession, request: Upload, body: BodyInit, signal?: AbortSignal, timeoutMs = 15000) {
+  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads/${pathId(request.upload_id)}/content`, { method: 'PUT', headers: { ...write(session,request.upload_id), 'Content-Type': 'application/octet-stream' }, body, signal }, 200, timeoutMs),request.upload_id);
   if (artifact.state !== 'available' || artifact.sha256 !== request.sha256 || artifact.size_bytes !== request.size_bytes || artifact.media_type !== request.media_type) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return artifact;
+ }
+ async measureAudio(session: UserSession, input: Artifact, signal?: AbortSignal) {
+  this.ownedArtifact(session, input);
+  if (input.state !== 'available' || !input.media_type.startsWith('audio/')) throw new Error('INVALID_AUDIO');
+  const data = await this.call(`${base(session)}/uploads/${pathId(input.upload_id)}/transcription-measurements`, {
+   method:'POST', headers:write(session,input.upload_id), body:JSON.stringify({version_id:input.version_id}), signal,
+  }, 200, 90000);
+  const result = decodeCompute('AudioMeasurement', data);
+  const rate = BigInt(result.source_sample_rate), samples = BigInt(result.source_samples);
+  const duration = (samples * 1000n + rate - 1n) / rate;
+  if (result.artifact_id !== input.artifact_id || result.version_id !== input.version_id || result.audio_sha256 !== input.sha256 ||
+      duration !== BigInt(result.duration_ms) || duration > 600000n || BigInt(result.normalized_samples) > 9600000n) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  return result;
  }
  async quote(session: UserSession, request: QuoteRequest) {
   decodeCompute('QuoteRequest', request);

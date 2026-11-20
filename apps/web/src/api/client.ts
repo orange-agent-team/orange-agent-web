@@ -5,10 +5,10 @@ export class ApiFailure extends Error {
 }
 export class UserClient {
   constructor(protected readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init)) {}
-  protected async call(path: string, init: RequestInit = {}, expectedStatus = 200): Promise<unknown> {
+  protected async call(path: string, init: RequestInit = {}, expectedStatus = 200, timeoutMs = 15000): Promise<unknown> {
     if (!path.startsWith('/api/v1/') || path.includes('://') || path.includes('\\')) throw new Error('INVALID_PATH');
     const deadline = new AbortController();
-    const timer = setTimeout(() => deadline.abort(), 15000);
+    const timer = setTimeout(() => deadline.abort(), timeoutMs);
     const cancel = () => deadline.abort();
     if (init.signal?.aborted) cancel(); else init.signal?.addEventListener('abort', cancel, { once: true });
     const signal = deadline.signal;

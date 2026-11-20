@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange private artifact API",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Current user sessions and independent artifact/source content ACLs. Includes committed Worker response references. Model execution success does not imply settlement or resource cleanup. Native usage is never a billing grant."
   },
   "paths": {
@@ -1003,6 +1003,101 @@
         },
         "description": "Current original user only. Request body is the exact original SubmitTextJob. Key scope is user/owner/Invocation. A prevented receipt fences future acceptance for this user and Invocation, with no invented Job or refund; an existing Job is cancelled through its normal lifecycle and may remain cancelling/pending. Every replay rechecks current authority."
       }
+    },
+    "/api/v1/owners/{owner}/uploads/{upload}/transcription-measurements": {
+      "post": {
+        "operationId": "measureTranscriptionArtifact",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "description": "Must equal upload in the path. A repeated preflight revalidates authority and computes the immutable version without side effects."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current artifact measurement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioMeasurement"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authorized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasureAudio"
+              }
+            }
+          }
+        },
+        "description": "Decode the authorized immutable audio version locally and check the source grant again before returning canonical usage. No financial or execution authority is issued."
+      }
     }
   },
   "components": {
@@ -1693,6 +1788,97 @@
               }
             }
           }
+        ]
+      },
+      "MeasureAudio": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          }
+        },
+        "required": [
+          "version_id"
+        ]
+      },
+      "AudioMeasurement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "audio_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "model_version": {
+            "const": "whisper-small-ct2-int8-cpu-v1"
+          },
+          "preprocessing": {
+            "const": "mono-16khz-s16-f32-v1"
+          },
+          "format": {
+            "enum": [
+              "wav",
+              "flac",
+              "mp3",
+              "ogg",
+              "mov"
+            ]
+          },
+          "codec": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_sample_rate": {
+            "type": "integer",
+            "minimum": 8000,
+            "maximum": 192000
+          },
+          "source_samples": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "normalized_samples": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "normalized_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "duration_ms": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "version_id",
+          "audio_sha256",
+          "model_version",
+          "preprocessing",
+          "format",
+          "codec",
+          "source_sample_rate",
+          "source_samples",
+          "normalized_samples",
+          "normalized_sha256",
+          "duration_ms"
         ]
       }
     }

@@ -3,7 +3,13 @@ import artifacts from '../../../../docs/contracts/artifacts.schema.json' with { 
 import pricing from '../../../../docs/contracts/pricing.schema.json' with { type: 'json' };
 export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
 export interface Artifact { upload_id: string; artifact_id: string; version_id: string; owner_id: string; sha256: string; size_bytes: string; media_type: string; state: 'staging' | 'available' | 'deleted' }
-export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain' }
+export type AudioMedia = 'audio/wav' | 'audio/flac' | 'audio/mpeg' | 'audio/ogg' | 'audio/mp4';
+export interface AudioMeasurement {
+ artifact_id: string; version_id: string; audio_sha256: string; model_version: string; preprocessing: string;
+ format: string; codec: string; source_sample_rate: number; source_samples: string; normalized_samples: string;
+ normalized_sha256: string; duration_ms: string;
+}
+export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain'|AudioMedia }
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
 export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
 export interface Quote { quote_id: string; root_budget_id: string; invocation_id: string; price_version: string; request_projection_digest: string; meter_profile_digest: string; input_units: string; output_limit: string; max_amount: string; expires_at_unix: string }
@@ -17,11 +23,12 @@ export interface Result { response_id: string; text: string; tool_calls: { id: s
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
 const validators = {
+ AudioMeasurement: compile<AudioMeasurement>(artifacts, 'AudioMeasurement'),
  Artifact: compile<Artifact>(artifacts, 'ArtifactView'), Upload: compile<Upload>(artifacts, 'CreateUpload'),
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+type Values = { AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');

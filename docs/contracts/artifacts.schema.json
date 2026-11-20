@@ -682,6 +682,97 @@
           }
         }
       ]
+    },
+    "MeasureAudio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "version_id"
+      ]
+    },
+    "AudioMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "audio_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "model_version": {
+          "const": "whisper-small-ct2-int8-cpu-v1"
+        },
+        "preprocessing": {
+          "const": "mono-16khz-s16-f32-v1"
+        },
+        "format": {
+          "enum": [
+            "wav",
+            "flac",
+            "mp3",
+            "ogg",
+            "mov"
+          ]
+        },
+        "codec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sample_rate": {
+          "type": "integer",
+          "minimum": 8000,
+          "maximum": 192000
+        },
+        "source_samples": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "normalized_samples": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "normalized_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "duration_ms": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "version_id",
+        "audio_sha256",
+        "model_version",
+        "preprocessing",
+        "format",
+        "codec",
+        "source_sample_rate",
+        "source_samples",
+        "normalized_samples",
+        "normalized_sha256",
+        "duration_ms"
+      ]
     }
   }
 }

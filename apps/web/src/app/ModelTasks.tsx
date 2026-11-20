@@ -120,7 +120,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   const visibleJob = !current.error ? current.data : undefined;
   const showText = !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
   return <>
-    <div className="page-heading"><div><p className="eyebrow">MODEL TASKS</p><h1>模型任务</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><Button onClick={refresh}>刷新任务</Button></div>
+    <div className="page-heading"><div><p className="eyebrow">MODEL TASKS</p><h1>模型任务</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><div><Link to="/tasks/audio">音频预检</Link> <Button onClick={refresh}>刷新任务</Button></div></div>
     {recoveryError && <Alert type="error" showIcon title="本地恢复记录无法核对" description="创建入口已关闭，你仍可在任务列表中查询现有任务。" />}
     {Boolean(failure) && <Alert type="warning" showIcon title="操作待核对" description={failureText(failure)} />}
     <div className="model-layout"><section><Card><h2>{intent ? '原任务请求' : '创建文本任务'}</h2>
