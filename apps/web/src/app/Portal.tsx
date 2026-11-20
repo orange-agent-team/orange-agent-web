@@ -7,6 +7,7 @@ import { UserClient, ApiFailure } from '../api/client';
 import { authorityKey, type UserSession, type Organization, type CreateOrganization, type TeamRole } from '../api/contracts';
 const api = new UserClient();
 const Account = lazy(() => import('./Account'));
+const HostedPgRoute = lazy(() => import('./HostedPgViews'));
 const HostedRuns = lazy(() => import('./HostedRuns'));
 const Support = lazy(() => import('./Support'));
 const ModelTasks = lazy(() => import('./ModelTasks'));
@@ -21,7 +22,7 @@ export default function Portal({ session, invalidate, logout }: { session: UserS
   return <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: '#bb481d', borderRadius: 10, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' } }}><QueryClientProvider client={client}>
     <div className="portal"><header className="portal-header"><Link to="/organizations" className="brand"><span className="brand-mark">o</span>orange</Link>
       <nav aria-label="用户导航"><NavLink to="/organizations">组织空间</NavLink><NavLink to="/account">积分与预算</NavLink><NavLink to="/tasks">模型任务</NavLink><NavLink to="/agent">托管运行</NavLink><NavLink to="/support">支持授权</NavLink></nav><div className="account"><span className="account-dot" />用户身份已验证<Button aria-label="退出" onClick={logout}>退出</Button></div></header>
-      <main className="portal-main"><Routes><Route path="/organizations" element={<Organizations session={session} invalidate={invalidate} />} /><Route path="/account" element={<Suspense fallback={<Spin />}><Account session={session} invalidate={invalidate} /></Suspense>} /><Route path="/agent" element={<Suspense fallback={<Spin/>}><HostedRuns key={session.session_id} session={session} invalidate={invalidate}/></Suspense>}/><Route path="/support" element={<Suspense fallback={<Spin/>}><Support session={session} invalidate={invalidate}/></Suspense>}/><Route path="/tasks" element={<Suspense fallback={<Spin />}><ModelTasks session={session} invalidate={invalidate} /></Suspense>} /><Route path="*" element={<Navigate to="/organizations" replace />} /></Routes></main>
+      <main className="portal-main"><Routes><Route path="/organizations" element={<Organizations session={session} invalidate={invalidate} />} /><Route path="/account" element={<Suspense fallback={<Spin />}><Account session={session} invalidate={invalidate} /></Suspense>} /><Route path="/agent/runs/:run/postgres" element={<HostedPgRoute session={session}/>} /><Route path="/agent" element={<Suspense fallback={<Spin/>}><HostedRuns key={session.session_id} session={session} invalidate={invalidate}/></Suspense>}/><Route path="/support" element={<Suspense fallback={<Spin/>}><Support session={session} invalidate={invalidate}/></Suspense>}/><Route path="/tasks" element={<Suspense fallback={<Spin />}><ModelTasks session={session} invalidate={invalidate} /></Suspense>} /><Route path="*" element={<Navigate to="/organizations" replace />} /></Routes></main>
       <footer className="portal-footer"><span>个人空间 · {session.personal_owner_id.slice(0, 8)}</span><span>组织成员身份不授予平台管理权限</span></footer>
     </div>
   </QueryClientProvider></ConfigProvider>;

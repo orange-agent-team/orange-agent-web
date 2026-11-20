@@ -125,6 +125,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
   </Card><Card title="我的运行" extra={<Button aria-label="刷新托管运行" onClick={refresh}>刷新</Button>}>
     {list.error?<Alert type="warning" title="运行记录读取失败"/>:list.data?.data.map(row=><section key={row.run_id}>
       <h3>{row.run_id}</h3><Tag>{names[row.status]}</Tag><span>工作区{workspace[row.workspace.status]} · 到期 {new Date(row.workspace.expires_at).toLocaleString()}</span>
+      <Link to={`/agent/runs/${encodeURIComponent(row.run_id)}/postgres`}>管理数据源授权</Link>
       <Button onClick={()=>setModelRun(row.run_id)}>查看模型步骤</Button>
       {!['cancelled','failed','completed'].includes(row.status)&&(cancelId===row.run_id?<Space><Button danger disabled={working} onClick={()=>void cancel(row.run_id)}>确认取消</Button>
         <Button disabled={working} onClick={()=>setCancelId(undefined)}>返回</Button></Space>:<Button disabled={working} onClick={()=>setCancelId(row.run_id)}>取消运行</Button>)}
