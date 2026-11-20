@@ -6,6 +6,8 @@ import { ComputeClient } from '../api/compute-client';
 import { pathId, sha256, type AudioMeasurement, type AudioMedia } from '../api/compute-contracts';
 import type { UserSession } from '../api/contracts';
 
+import AudioInputConsent from './AudioInputConsent';
+
 const api = new ComputeClient();
 const formats: Record<string, AudioMedia> = { wav:'audio/wav', flac:'audio/flac', mp3:'audio/mpeg', ogg:'audio/ogg', opus:'audio/ogg', m4a:'audio/mp4' };
 type Selection = { file: File; media: AudioMedia; upload: string };
@@ -98,5 +100,6 @@ export default function AudioPreflight({ session, invalidate }: { session: UserS
       <dt>源采样</dt><dd>{receipt.source_samples} 个采样点，{receipt.source_sample_rate} Hz</dd>
       <dt>对象版本</dt><dd><Typography.Text copyable>{receipt.version_id}</Typography.Text></dd>
     </dl></Card>}
+    <AudioInputConsent session={session} upload={upload} measurement={receipt} />
   </>;
 }

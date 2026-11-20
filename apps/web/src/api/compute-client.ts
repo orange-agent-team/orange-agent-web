@@ -1,12 +1,36 @@
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
-import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
+import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, type AudioGrantRequest, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
 const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audio/flac':'flac', 'audio/mpeg':'mp3', 'audio/ogg':'ogg', 'audio/mp4':'mov' };
 const base = (session: UserSession) => `/api/v1/owners/${pathId(session.personal_owner_id)}`;
 export class ComputeClient extends UserClient {
+ async audioTarget(id: string, signal?: AbortSignal) {
+  const target=decodeCompute('AudioTarget',await this.call('/api/v1/transcription-targets/'+pathId(id),{signal}));
+  if(target.observation_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  return target;
+ }
+ async createAudioGrant(session:UserSession,request:AudioGrantRequest,signal?:AbortSignal){
+  decodeCompute('AudioGrantRequest',request);
+  const value=decodeCompute('AudioGrantReceipt',await this.call(base(session)+'/transcription-input-grants',{
+   method:'POST',signal,headers:write(session,request.grant_id),body:JSON.stringify(request)},200,90000));
+  if(value.grant_id!==request.grant_id || value.invocation_id!==request.invocation_id || value.observation_id!==request.observation_id)
+   throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  return value;
+ }
+ async audioGrant(session:UserSession,id:string,signal?:AbortSignal){
+  const value=decodeCompute('AudioGrantReceipt',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{signal}));
+  if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  return value;
+ }
+ async withdrawAudio(session:UserSession,id:string,signal?:AbortSignal){
+  const value=decodeCompute('AudioWithdrawal',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{
+   method:'DELETE',headers:write(session,id),signal}));
+  if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  return value;
+ }
  async prices(signal?: AbortSignal) {
   const data = await this.call('/api/v1/text-prices', { signal });
   if (!Array.isArray(data) || data.length > 1000) throw new Error('INVALID_PRICE_LIST');
