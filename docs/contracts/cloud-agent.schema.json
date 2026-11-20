@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orange.invalid/contracts/cloud-agent.v1.schema.json",
+  "$defs": {
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "request_id",
+        "retry_class"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "retry_class": {
+          "type": "string"
+        }
+      }
+    },
+    "CloudRunCreate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "input_artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "input_version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "resource_profile_id": {
+          "const": "dev-gvisor-linux-arm64-v1"
+        },
+        "workspace_ttl_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 3600
+        }
+      },
+      "required": [
+        "root_budget_id",
+        "input_artifact_id",
+        "input_version_id",
+        "resource_profile_id",
+        "workspace_ttl_seconds"
+      ]
+    },
+    "CloudWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "status": {
+          "enum": [
+            "requested",
+            "preparing",
+            "ready",
+            "running",
+            "draining",
+            "deleted",
+            "quarantined"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "resource_profile_id": {
+          "const": "dev-gvisor-linux-arm64-v1"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "status",
+        "version",
+        "resource_profile_id",
+        "expires_at"
+      ]
+    },
+    "CloudRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "cancelled",
+            "recovery_required",
+            "failed",
+            "completed",
+            "waiting_approval",
+            "paused"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "input_artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "input_version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "workspace": {
+          "$ref": "#/$defs/CloudWorkspace"
+        }
+      },
+      "required": [
+        "run_id",
+        "owner_id",
+        "user_id",
+        "status",
+        "version",
+        "root_budget_id",
+        "input_artifact_id",
+        "input_version_id",
+        "created_at",
+        "workspace"
+      ]
+    },
+    "CloudRunList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/CloudRun"
+          }
+        },
+        "next_before": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        }
+      },
+      "required": [
+        "user_id",
+        "owner_id",
+        "data"
+      ]
+    },
+    "CloudCapacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "resource_profile_id": {
+          "const": "dev-gvisor-linux-arm64-v1"
+        },
+        "max_active": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "occupied": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "can_reserve": {
+          "type": "boolean"
+        },
+        "pool_available": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "user_id",
+        "owner_id",
+        "resource_profile_id",
+        "max_active",
+        "occupied",
+        "can_reserve",
+        "pool_available"
+      ]
+    },
+    "CloudRunWithdrawal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_id",
+        "user_id",
+        "request_key",
+        "receipt_id"
+      ],
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "request_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "run": {
+          "$ref": "#/$defs/CloudRun"
+        }
+      }
+    }
+  }
+}

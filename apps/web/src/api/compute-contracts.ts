@@ -3,7 +3,7 @@ import artifacts from '../../../../docs/contracts/artifacts.schema.json' with { 
 import pricing from '../../../../docs/contracts/pricing.schema.json' with { type: 'json' };
 export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
 export interface Artifact { upload_id: string; artifact_id: string; version_id: string; owner_id: string; sha256: string; size_bytes: string; media_type: string; state: 'staging' | 'available' | 'deleted' }
-export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json' }
+export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain' }
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
 export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
 export interface Quote { quote_id: string; root_budget_id: string; invocation_id: string; price_version: string; request_projection_digest: string; meter_profile_digest: string; input_units: string; output_limit: string; max_amount: string; expires_at_unix: string }
