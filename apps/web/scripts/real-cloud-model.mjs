@@ -1,3 +1,4 @@
+import {continueModel} from './real-continuation.mjs';
 // Entire built portal, actual platform workspace and a distinct CPU inference
 // Worker. Follow the user's explicit quote approval before any spending effect.
 import {chromium} from '@playwright/test';
@@ -8,9 +9,9 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 const root=fileURLToPath(new URL('../',import.meta.url)),tls=resolve(root,'../../.local/tls');
 let input='';for await(const b of process.stdin)input+=b;
-const f=JSON.parse(input),api=new URL(f.api),origin='https://127.0.0.1:43127';
-if(api.hostname!=='127.0.0.1'||api.protocol!=='http:'||!api.port)throw Error('Loopback user service required');
-const server=await preview({root,configFile:false,logLevel:'silent',preview:{host:'127.0.0.1',port:43127,strictPort:true,
+const f=JSON.parse(input),api=new URL(f.api),origin=f.origin;
+if(!['https://127.0.0.1:43127','https://127.0.0.1:43128'].includes(origin)||api.hostname!=='127.0.0.1'||api.protocol!=='http:'||!api.port)throw Error('Loopback user service required');
+const server=await preview({root,configFile:false,logLevel:'silent',preview:{host:'127.0.0.1',port:Number(new URL(origin).port),strictPort:true,
   https:{key:readFileSync(resolve(tls,'key.pem')),cert:readFileSync(resolve(tls,'cert.pem'))},proxy:{'/api/v1/':{target:api.origin,changeOrigin:false}}}});
 let browser,page;
 const diagnostics=[];
@@ -127,10 +128,11 @@ try{
   if(f.directory_cases){
     await page.getByRole('checkbox',{name:'允许模型申请查看工作区根目录'}).check();
     await page.getByLabel('最大输出单位').fill('96');await page.getByLabel('最大输出单位').press('Tab');
-    for(const scenario of ['approved','rejected','expired_after_dispatch']){
+    for(const scenario of ['approved','rejected','expired_after_dispatch',...(f.continuation_case?['continued']:[])]){
       const decision=scenario==='rejected'?'reject':'approve';
+      if(scenario==='continued')await page.getByRole('checkbox',{name:'保留工作区以便使用工具结果继续回答'}).check();
       await page.getByRole('button',{name:'刷新托管运行'}).click();
-      await page.getByRole('textbox',{name:'运行输入'}).fill('Use the list_directory tool now with path "." to list the working directory. Make a tool call. Do not give a text answer.');
+      await page.getByRole('textbox',{name:'运行输入'}).fill(scenario==='continued'?'Use list_directory with path "." to find the filename in the workspace. After the tool result, answer with the filename.':'Use the list_directory tool now with path "." to list the working directory. Make a tool call. Do not give a text answer.');
       const saved=page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname.endsWith('/content'));
       const reservation=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/v1/agent/runs');
       await page.getByRole('button',{name:'保存输入并预留工作区'}).click();
@@ -157,20 +159,22 @@ try{
       await tool.getByRole('button',{name:decision==='approve'?'批准本次目录读取':'拒绝本次目录读取'}).click();
       const ack=await pending;if(ack.status()!==200||(await ack.json()).decision!==decision)throw Error('Decision not accepted');
       const entry=page.locator('section').filter({has:page.getByRole('heading',{name:run.run_id,exact:true})});
-      if(scenario==='approved'){
+      if(scenario==='approved'||scenario==='continued'){
         await tool.getByLabel('已提交的目录结果').getByText('input.txt · '+input.size_bytes+' 字节',{exact:true}).waitFor();
-        await page.screenshot({path:f.tool_screenshot,fullPage:true});
+        if(scenario==='approved')await page.screenshot({path:f.tool_screenshot,fullPage:true});
       }
+      const continuation=scenario==='continued'?await continueModel({page,ctx,origin,f,run,input,job,op,quote,headers}):undefined;
       await entry.getByText(/工作区已回收/).waitFor();
       const outcome=(await (await ctx.request.get(origin+base+'/operations')).json()).data[0];
-      const target={approved:'succeeded',rejected:'failed',expired_after_dispatch:'unknown'}[scenario];
+      const target={approved:'succeeded',rejected:'failed',expired_after_dispatch:'unknown',continued:'succeeded'}[scenario];
       if(outcome.state!==target||(target==='succeeded'?!outcome.result_artifact_id:!!outcome.result))throw Error('Unexpected terminal tool operation: '+outcome.state);
       await page.getByRole('button',{name:'撤销目录权限',exact:true}).click();
       await page.getByRole('button',{name:'确认撤销目录权限'}).click();
       await page.getByText(/权限已撤销/).waitFor();
       const redacted=await (await ctx.request.get(origin+base+'/operations')).json();
       if(!redacted.revoked||redacted.data.some(v=>v.arguments||v.result))throw Error('Revocation did not clear tool content');
-      directoryRuns.push({scenario,decision,run_id:run.run_id,job_id:job.job_id,operation_id:op.operation_id,commit_id:op.commit_id,
+      if(continuation){await continuation.verifyRevocation();continuation.evidence.revocation_denied_all_three=true;}
+      directoryRuns.push({scenario,decision,continuation:continuation?.evidence,run_id:run.run_id,job_id:job.job_id,operation_id:op.operation_id,commit_id:op.commit_id,
         tool_version:op.tool_version,bytes:input.size_bytes,terminal:outcome.state,revoked_content_cleared:true});
     }
   }

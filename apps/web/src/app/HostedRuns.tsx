@@ -14,7 +14,7 @@ const workspace={requested:'已预留',preparing:'准备中',ready:'就绪',runn
 
 export default function HostedRuns({session,invalidate}:{session:UserSession;invalidate:()=>void}){
   const [mode,setMode]=useState<'workspace'|'model'>('workspace'),[price,setPrice]=useState(''),[modelRun,setModelRun]=useState('');
-  const [directory,setDirectory]=useState(false);
+  const [directory,setDirectory]=useState(false),[followup,setFollowup]=useState(false);
   const [outputLimit,setOutputLimit]=useState(32);
   const [prompt,setPrompt]=useState(''),[budget,setBudget]=useState(''),[ttl,setTtl]=useState(900);
   const [pages,setPages]=useState<string[]>([]),[budgetPages,setBudgetPages]=useState<string[]>([]);
@@ -23,7 +23,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
   const [cancelId,setCancelId]=useState<string>();
   const busy=useRef(false),alive=useRef(true);
   useEffect(()=>{alive.current=true;try{
-    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);setDirectory(!!old.model.tool);}}setStorageReady(true);
+    const old=readIntent(sessionStorage,session);setIntent(old);if(old){setBudget(old.budget);setTtl(old.ttl);if(old.model){setMode('model');setPrice(old.model.price_version);setOutputLimit(old.model.output_limit);setDirectory(!!old.model.tool);setFollowup(old.model.continue_after_tool===true);}}setStorageReady(true);
   }catch{setNotice('无法核对本会话的待处理请求，已暂停创建。');}return()=>{alive.current=false;};},[session.session_id,session.user_id,session.personal_owner_id]);
   const key=authorityKey(session);
   const cap=useQuery({queryKey:[key,'cloud-capacity'],queryFn:({signal})=>api.cloudCapacity(session,signal),refetchInterval:10000});
@@ -49,7 +49,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
       let current=intent;
       const model=current?.model??(!current&&mode==='model'&&resolvedPrice?{price_version:resolvedPrice.price_version,model_version:resolvedPrice.model_version,
         invocation_id:crypto.randomUUID(),output_limit:Math.min(outputLimit,Number(resolvedPrice.output_limit)),
-        ...(directory&&directoryTool?{tool:{name:directoryTool.name,execution_digest:directoryTool.execution_digest}}:{})}:undefined);
+        ...(directory&&directoryTool?{tool:{name:directoryTool.name,execution_digest:directoryTool.execution_digest},...(followup?{continue_after_tool:true}:{})}:{})}:undefined);
       if(!current&&mode==='model'&&(!model||(directory&&!directoryTool)))throw Error('MODEL_UNAVAILABLE');
       const definition=current?.definition??(model?.tool?directoryTool?.model_definition:undefined);
       const source=model?JSON.stringify({invocation_id:model.invocation_id,model_version:model.model_version,
@@ -110,8 +110,9 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
     <label>运行模式<Select aria-label="运行模式" value={mode} disabled={working||!!intent} onChange={setMode} options={[{value:'workspace',label:'仅准备工作区'},{value:'model',label:'模型回复'}]}/></label>
     {mode==='model'&&<label>推理价格版本<Select aria-label="推理价格版本" value={intent?.model?.price_version??resolvedPrice?.price_version}
       disabled={working||!!intent} onChange={setPrice} options={prices.data?.map(p=>({value:p.price_version,label:p.model_version+' · '+p.price_version}))??[]}/></label>}
-    {mode==='model'&&<Checkbox checked={directory} disabled={working||!!intent} onChange={e=>setDirectory(e.target.checked)}>允许模型申请查看工作区根目录</Checkbox>}
-    {mode==='model'&&directory&&<p>每次目录读取还需核对参数并批准。</p>}
+    {mode==='model'&&<Checkbox checked={directory} disabled={working||!!intent} onChange={e=>{setDirectory(e.target.checked);if(!e.target.checked)setFollowup(false);}}>允许模型申请查看工作区根目录</Checkbox>}
+    {mode==='model'&&directory&&<><p>每次目录读取还需核对参数并批准。</p>
+      <Checkbox checked={followup} disabled={working||!!intent} onChange={e=>setFollowup(e.target.checked)}>保留工作区以便使用工具结果继续回答</Checkbox></>}
     {mode==='model'&&<label>最大输出单位<InputNumber aria-label="最大输出单位" min={1} max={Math.min(4096,Number(resolvedPrice?.output_limit??4096))}
       precision={0} disabled={working||!!intent} value={Math.min(outputLimit,Number(resolvedPrice?.output_limit??4096))} onChange={v=>setOutputLimit(v??1)}/></label>}
     {mode==='model'&&!intent&&!prices.isFetching&&!resolvedPrice&&<Alert type="warning" title="当前没有可用的审核推理价格"/>}

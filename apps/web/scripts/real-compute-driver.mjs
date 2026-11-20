@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 if(process.version!=='v22.23.2')throw Error('Pinned Node22.23.2 required');
 const file=process.argv[2];if(!file||(statSync(file).mode&0o077))throw Error('Private fixture file required');
 const f=JSON.parse(readFileSync(file,'utf8')), api=new URL(f.api), origin=new URL(f.origin);
-if(api.protocol!=='http:'||api.hostname!=='127.0.0.1'||api.username||api.password||api.pathname!=='/'||api.search||api.hash||origin.origin!=='https://127.0.0.1:43127')throw Error('Dedicated loopback services required');
+if(api.protocol!=='http:'||api.hostname!=='127.0.0.1'||api.username||api.password||api.pathname!=='/'||api.search||api.hash||!['https://127.0.0.1:43127','https://127.0.0.1:43128'].includes(origin.origin))throw Error('Dedicated loopback services required');
 if(typeof f.cookie!=='string'||!f.cookie.startsWith('__Host-orange-user='))throw Error('Explicit user-session fixture required');
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dist=realpathSync(resolve(app,'dist'));
 const tls=resolve(app,'../../.local/tls'),output=resolve(dirname(file),'browser-result.json');

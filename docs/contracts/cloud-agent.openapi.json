@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange hosted Agent development control plane",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "Reservations require a current platform Host, active owner budget and an available personal text input. A queued Run has not executed a model or tool. Workspace lease, Run execution and accounting are distinct."
   },
   "paths": {
@@ -868,6 +868,134 @@
           }
         }
       }
+    },
+    "/api/v1/agent/runs/{id}/model/continuation": {
+      "post": {
+        "operationId": "prepareHostedContinuation",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudModelStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Prepare the bounded second model input from the authorized first response and committed tool result. This does not submit a Job or reserve credits."
+      }
+    },
+    "/api/v1/agent/runs/{id}/model/history": {
+      "get": {
+        "operationId": "listHostedModelTurnHistory",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current persisted projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudModelHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Typed authorization, validation, capacity or service error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1211,6 +1339,10 @@
           },
           "tool": {
             "$ref": "#/components/schemas/CloudToolChoice"
+          },
+          "continue_after_tool": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -1286,7 +1418,8 @@
               "stopped",
               "unavailable",
               "waiting_tool",
-              "tool_result_available"
+              "tool_result_available",
+              "continuation_ready"
             ]
           },
           "job_id": {
@@ -1301,6 +1434,23 @@
           },
           "tool": {
             "$ref": "#/components/schemas/CloudToolChoice"
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "source_input_version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "model_input_upload_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
           }
         },
         "required": [
@@ -2064,6 +2214,148 @@
             "const": true
           }
         }
+      },
+      "CloudHistoryTurn": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "turn_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "invocation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "input_version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "parent_operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "outcome": {
+            "enum": [
+              "final",
+              "tool_request",
+              "stopped"
+            ]
+          },
+          "job": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "quote_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "max_microcredits": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "charge_microcredits": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "execution_state": {
+                "type": "string"
+              },
+              "settlement_state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "job_id",
+              "quote_id",
+              "max_microcredits",
+              "charge_microcredits",
+              "execution_state",
+              "settlement_state"
+            ]
+          }
+        },
+        "required": [
+          "turn_id",
+          "ordinal",
+          "invocation_id",
+          "input_version_id"
+        ]
+      },
+      "CloudModelHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/CloudHistoryTurn"
+            }
+          },
+          "settled_microcredits": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "pending_max_microcredits": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "run_id",
+          "owner_id",
+          "user_id",
+          "root_budget_id",
+          "turns",
+          "settled_microcredits",
+          "pending_max_microcredits"
+        ]
       }
     }
   }

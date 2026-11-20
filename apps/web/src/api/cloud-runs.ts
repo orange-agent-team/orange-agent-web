@@ -12,9 +12,9 @@ export interface CloudOperation {operation_id:string;approval_id:string;tool_nam
   state:'intended'|'dispatching'|'succeeded'|'failed'|'unknown';commit_id:string;decision?:'approve'|'reject';arguments?:{path:'.';limit?:number};
   result?:{path:'.';snapshot_digest:string;entries:{name:string;kind:'file';bytes:string}[];next_cursor:null;omitted_unsupported:boolean};result_artifact_id?:string}
 export interface CloudOps {run_id:string;user_id:string;owner_id:string;workspace_id:string;capability_id:string;execution_digest:string;policy_version:string;revoked:boolean;source_available:boolean;data:CloudOperation[]}
-export interface ModelSelection {tool?:Choice;price_version:string;model_version:string;invocation_id:string;output_limit:number}
-export interface ModelStep extends ModelSelection {run_id:string;user_id:string;owner_id:string;root_budget_id:string;input_version_id:string;
-  stage:'awaiting_workspace'|'ready_to_quote'|'submitted'|'stopped'|'unavailable'|'result_available'|'waiting_tool'|'tool_result_available';job_id?:string;request_projection_digest?:string}
+export interface ModelSelection {continue_after_tool?:boolean;tool?:Choice;price_version:string;model_version:string;invocation_id:string;output_limit:number}
+export interface ModelStep extends ModelSelection {turn?:number;source_input_version_id?:string;model_input_upload_id?:string;run_id:string;user_id:string;owner_id:string;root_budget_id:string;input_version_id:string;
+  stage:'awaiting_workspace'|'ready_to_quote'|'submitted'|'stopped'|'unavailable'|'result_available'|'waiting_tool'|'tool_result_available'|'continuation_ready';job_id?:string;request_projection_digest?:string}
 export interface RunCreate {model?:ModelSelection;root_budget_id:string;input_artifact_id:string;input_version_id:string;resource_profile_id:typeof profile;workspace_ttl_seconds:number}
 export interface CloudRun {
   run_id:string;owner_id:string;user_id:string;version:string;root_budget_id:string;input_artifact_id:string;input_version_id:string;created_at:string;
@@ -37,6 +37,10 @@ const toolList=validate<{user_id:string;owner_id:string;tools:CloudTool[]}>('Clo
 const ops=validate<CloudOps>('CloudOperations');
 const decisionReceipt=validate<{run_id:string;user_id:string;owner_id:string;operation_id:string;decision:'approve'|'reject';review_digest:string}>('CloudDecisionReceipt');
 const revoked=validate<{run_id:string;user_id:string;owner_id:string;revoked:true;receipt_id:string}>('CloudCapabilityRevocation');
+interface HistoryTurn{turn_id:string;ordinal:number;invocation_id:string;input_version_id:string;parent_operation_id?:string;outcome?:'tool_request'|'final'|'stopped';
+  job?:{job_id:string;quote_id:string;max_microcredits:string;charge_microcredits:string;execution_state:string;settlement_state:string}}
+interface History{run_id:string;user_id:string;owner_id:string;root_budget_id:string;turns:HistoryTurn[];settled_microcredits:string;pending_max_microcredits:string}
+const history=validate<History>('CloudModelHistory');
 const idPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
 function component(id:string){if(!idPattern.test(id))throw Error('INVALID_IDENTIFIER');return encodeURIComponent(id);}
 function owned(row:{owner_id:string;user_id:string},s:UserSession){if(row.owner_id!==s.personal_owner_id||row.user_id!==s.user_id)throw new ApiFailure(403,'ACTOR_MISMATCH');}
@@ -66,6 +70,18 @@ export class CloudClient extends ComputeClient {
   async modelStep(s:UserSession,id:string,signal?:AbortSignal){
     const raw=await this.call(base+'/runs/'+component(id)+'/model',{signal});
     if(!modelStep(raw)||raw.run_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+    owned(raw,s);return raw;
+  }
+  async prepareContinuation(s:UserSession,step:ModelStep){
+    const raw=await this.call(base+'/runs/'+component(step.run_id)+'/model/continuation',{method:'POST',headers:{
+      'Content-Type':'application/json','X-CSRF-Token':s.csrf_token,'Idempotency-Key':step.run_id+':continuation'},body:'{}'});
+    if(!modelStep(raw)||raw.run_id!==step.run_id||raw.turn!==2||raw.source_input_version_id!==step.source_input_version_id||
+        raw.root_budget_id!==step.root_budget_id||raw.model_version!==step.model_version||raw.input_version_id===raw.source_input_version_id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+    owned(raw,s);return raw;
+  }
+  async modelHistory(s:UserSession,run:string,signal?:AbortSignal){
+    const raw=await this.call(base+'/runs/'+component(run)+'/model/history',{signal});
+    if(!history(raw)||raw.run_id!==run||raw.turns.some((t,i)=>t.ordinal!==i+1))throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
     owned(raw,s);return raw;
   }
   async quoteModel(s:UserSession,step:ModelStep,key:string):Promise<Quote>{
