@@ -1,7 +1,7 @@
 {
-  "version": "0.11.0",
+  "version": "0.12.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "37ba6387a9a3167ccc315803f18bfc005fd8e3db",
+  "source_commit": "7bd6bc7f0b6914623bfbe92245a4196a5870cfd5",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
@@ -37,11 +37,11 @@
     },
     "cloud-agent.schema.json": {
       "source": "contracts/json-schema/cloud-agent.schema.json",
-      "sha256": "3ebe9c5e1dc19a666a079542ceeacfec7350ec023250d7a4c3e22d1fd9d102ab"
+      "sha256": "e8c55d25eace9de666cfa13b5bfc57fc5aae7cf81bcc5e32974380d6c0190ff2"
     },
     "cloud-agent.openapi.json": {
       "source": "contracts/openapi/cloud-agent.v1.json",
-      "sha256": "475036322cc13d7cac9b6a94b9a661a6e9ec852978e029ed3069925b515602f4"
+      "sha256": "c859b18c555c2454ca5cd36c2a68a976287113b7bf6aa568a6ea1eadbcb96c64"
     },
     "pg-connector.schema.json": {
       "source": "contracts/json-schema/pg-connector.schema.json",
@@ -58,6 +58,14 @@
     "s3-connector.openapi.json": {
       "source": "contracts/openapi/s3-connector.v1.json",
       "sha256": "6b94cf1b6e646d9b762b43e130fe7e14e3fd63b903609e99acf78362308efda6"
+    },
+    "repository-connector.schema.json": {
+      "source": "contracts/json-schema/repository-connector.schema.json",
+      "sha256": "120c377f7a63ad682c257569caf86cdd74bf34b9616cce007784038a2e29e7b5"
+    },
+    "repository-connector.openapi.json": {
+      "source": "contracts/openapi/repository-connector.v1.json",
+      "sha256": "00d499e378a122bc926a0c995ebacbb276081cd7b69d5ba89bea569957c5fea0"
     }
   }
 }

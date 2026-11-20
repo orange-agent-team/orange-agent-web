@@ -17,7 +17,7 @@ export interface CloudOps {run_id:string;user_id:string;owner_id:string;workspac
 export interface ModelSelection {continue_after_tool?:boolean;tool?:Choice;price_version:string;model_version:string;invocation_id:string;output_limit:number}
 export interface ModelStep extends ModelSelection {turn?:number;source_input_version_id?:string;model_input_upload_id?:string;run_id:string;user_id:string;owner_id:string;root_budget_id:string;input_version_id:string;
   stage:'awaiting_workspace'|'ready_to_quote'|'submitted'|'stopped'|'unavailable'|'result_available'|'waiting_tool'|'tool_result_available'|'continuation_ready';job_id?:string;request_projection_digest?:string}
-export interface RunCreate {model?:ModelSelection;root_budget_id:string;input_artifact_id:string;input_version_id:string;resource_profile_id:typeof profile;workspace_ttl_seconds:number}
+export interface RunCreate {allow_external_connectors?:true;model?:ModelSelection;root_budget_id:string;input_artifact_id:string;input_version_id:string;resource_profile_id:typeof profile;workspace_ttl_seconds:number}
 export interface CloudRun {
   run_id:string;owner_id:string;user_id:string;version:string;root_budget_id:string;input_artifact_id:string;input_version_id:string;created_at:string;
   status:'queued'|'running'|'cancelled'|'recovery_required'|'failed'|'completed'|'waiting_approval'|'paused';

@@ -1,0 +1,1006 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orange registered repository Run connectors",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/agent/runs/{run}/connectors/{provider}": {
+      "get": {
+        "operationId": "listRepositorySources",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "gitlab"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inventory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "grantRepositories",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "gitlab"
+              ]
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Consent"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{run}/connectors/{provider}/{grant}": {
+      "delete": {
+        "operationId": "revokeRepositoryGrant",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "gitlab"
+              ]
+            }
+          },
+          {
+            "name": "grant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{run}/connectors/{provider}/{grant}/actions": {
+      "post": {
+        "operationId": "readRepositorySource",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "gitlab"
+              ]
+            }
+          },
+          {
+            "name": "grant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Output"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/runs/{run}/connectors/{provider}/{grant}/artifacts/{artifact}/content": {
+      "post": {
+        "operationId": "downloadRepositoryFile",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "github",
+                "gitlab"
+              ]
+            }
+          },
+          {
+            "name": "grant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "artifact",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "in": "path"
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Digest-verified object bytes after rechecking live grant and source version",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "User session required"
+          },
+          "403": {
+            "description": "Consent, origin or active Run required"
+          },
+          "404": {
+            "description": "Unknown resource"
+          },
+          "409": {
+            "description": "Consumed request, changed source or conflicting intent"
+          },
+          "413": {
+            "description": "Result limit"
+          },
+          "429": {
+            "description": "Run limit"
+          },
+          "503": {
+            "description": "Source or identity service unavailable"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "UserSession": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "UserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-orange-user"
+      }
+    },
+    "schemas": {
+      "Source": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "repository_id": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,19}$"
+                },
+                "path": {
+                  "type": "string",
+                  "maxLength": 1024
+                },
+                "file_prefixes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "minItems": 0,
+                  "maxItems": 32
+                },
+                "issues": {
+                  "type": "boolean"
+                },
+                "changes": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "repository_id",
+                "path",
+                "file_prefixes",
+                "issues",
+                "changes"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "repositories"
+        ],
+        "additionalProperties": false
+      },
+      "Grant": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "grant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "repository_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "grant_id",
+          "repository_ids",
+          "expires_at",
+          "revoked"
+        ],
+        "additionalProperties": false
+      },
+      "Consent": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "repository_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "repository_ids",
+          "duration_seconds"
+        ],
+        "additionalProperties": false
+      },
+      "GrantReceipt": {
+        "type": "object",
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "grant_id"
+        ],
+        "additionalProperties": false
+      },
+      "Inventory": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "minItems": 0,
+            "maxItems": 32
+          },
+          "recent_grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            },
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "run_readable": {
+            "type": "boolean"
+          },
+          "external_access_selected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sources",
+          "recent_grants",
+          "run_readable",
+          "external_access_selected"
+        ],
+        "additionalProperties": false
+      },
+      "Repository": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "default_branch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "default_branch"
+        ],
+        "additionalProperties": false
+      },
+      "Summary": {
+        "type": "object",
+        "properties": {
+          "repository_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "number": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository_id",
+          "number",
+          "id",
+          "title",
+          "state",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "repository_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "number": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "repository_id",
+          "number",
+          "id",
+          "title",
+          "state",
+          "updated_at",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "Page": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Repository"
+                },
+                {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              ]
+            },
+            "minItems": 0,
+            "maxItems": 100
+          },
+          "next_page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "data",
+          "next_page"
+        ],
+        "additionalProperties": false
+      },
+      "Artifact": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "const": "source_backed_artifact"
+          },
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "repository_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "blob": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "size_bytes": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "kind",
+          "artifact_id",
+          "repository_id",
+          "path",
+          "commit",
+          "blob",
+          "size_bytes",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "Action": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "enum": [
+                  "list_repositories",
+                  "list_projects"
+                ]
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "action",
+              "page",
+              "limit"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "read_file"
+              },
+              "repository_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "required": [
+              "action",
+              "repository_id",
+              "revision",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "enum": [
+                  "list_issues",
+                  "list_pull_requests",
+                  "list_merge_requests"
+                ]
+              },
+              "repository_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "action",
+              "repository_id",
+              "page",
+              "limit"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "enum": [
+                  "read_issue",
+                  "read_pull_request",
+                  "read_merge_request"
+                ]
+              },
+              "repository_id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "number": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              }
+            },
+            "required": [
+              "action",
+              "repository_id",
+              "number"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Output": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "const": "external_untrusted_data"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Page"
+              },
+              {
+                "$ref": "#/components/schemas/Item"
+              },
+              {
+                "$ref": "#/components/schemas/Artifact"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

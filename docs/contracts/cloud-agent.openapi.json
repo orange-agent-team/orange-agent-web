@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange hosted Agent development control plane",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "description": "Reservations require a current platform Host, active owner budget and an available personal text input. A queued Run has not executed a model or tool. Workspace lease, Run execution and accounting are distinct."
   },
   "paths": {
@@ -1219,6 +1219,10 @@
           },
           "model": {
             "$ref": "#/components/schemas/ModelSelection"
+          },
+          "allow_external_connectors": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [

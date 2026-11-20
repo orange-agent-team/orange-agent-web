@@ -58,6 +58,10 @@
         },
         "model": {
           "$ref": "#/$defs/ModelSelection"
+        },
+        "allow_external_connectors": {
+          "type": "boolean",
+          "default": false
         }
       },
       "required": [

@@ -1,3 +1,4 @@
+import {verifiedDownload} from './verified-download';
 import {Ajv2020} from 'ajv/dist/2020.js';
 import schema from '../../../../docs/contracts/s3-connector.schema.json' with {type:'json'};
 import {UserClient,ApiFailure} from './client';
@@ -53,24 +54,7 @@ export class S3Client extends UserClient{
     return value;
   }
   async download(s:UserSession,run:string,g:Grant,ref:Artifact,signal:AbortSignal){
-    const size=Number(ref.head.size_bytes);
-    if(!Number.isSafeInteger(size)||size>20*1024*1024)throw new ApiFailure(413,'OBJECT_TOO_LARGE');
     const url=path(run)+'/'+segment(g.grant_id)+'/artifacts/'+segment(ref.artifact_id)+'/content';
-    const res=await this.fetcher(url,{method:'POST',headers:headers(s,crypto.randomUUID()),credentials:'same-origin',cache:'no-store',redirect:'error',signal});
-    if(res.status!==200)throw new ApiFailure(res.status,'DOWNLOAD_DENIED');
-    if(!res.body||res.headers.get('Content-Type')!=='application/octet-stream')throw new ApiFailure(200,'INVALID_RESPONSE');
-    const reader=res.body.getReader(), data=new Uint8Array(size);
-    let offset=0;
-    try{
-      for(;;){
-        const part=await reader.read();
-        if(part.done)break;
-        if(part.value.byteLength>size-offset)throw new ApiFailure(200,'BYTE_COUNT_MISMATCH');
-        data.set(part.value,offset);offset+=part.value.byteLength;
-      }
-    }finally{await reader.cancel();reader.releaseLock();}
-    const digest=await crypto.subtle.digest('SHA-256',data);
-    if(offset!==size||Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')!==ref.sha256)throw new ApiFailure(200,'CONTENT_INTEGRITY');
-    return new Blob([data],{type:'application/octet-stream'});
+    return verifiedDownload(this.fetcher,url,headers(s,crypto.randomUUID()),ref.head.size_bytes,ref.sha256,signal);
   }
 }
