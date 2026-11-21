@@ -6,9 +6,10 @@ import { ApiFailure } from '../api/client';
 import { ComputeClient, ContentUnavailable } from '../api/compute-client';
 import { authorityKey, type UserSession } from '../api/contracts';
 import { formatCredits } from '../api/accounts';
-import { modelInput, pathId, type Job } from '../api/compute-contracts';
+import { modelInput, pathId, sha256, type Job } from '../api/compute-contracts';
 import { advanceComputeIntent, confirmComputeIntent, loadComputeIntent, newComputeIntent, saveComputeIntent, clearFinishedCreation, withdrawComputeIntent, OriginalInputRequired, type ComputeIntent, type VerifiedComputeQuote } from '../api/compute-intent';
 import TaskDocument from './TaskDocument';
+import {projectText,type TransferMode} from '../api/text-transfer';
 const api = new ComputeClient();
 const states: Record<Job['execution_state'], string> = { queued: '等待执行', running: '执行中', cancelling: '正在取消', succeeded: '已完成', failed: '执行失败', cancelled: '已取消' };
 const settlements: Record<Job['settlement_state'], string> = { pending: '结算待核对', settled: '已结算', reversed: '已冲正' };
@@ -28,6 +29,14 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   const [initializing, setInitializing] = useState(true);
   const [recoveryError, setRecoveryError] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [mode,setMode]=useState<TransferMode>('local');
+  const [terms,setTerms]=useState('');
+  const [previewError,setPreviewError]=useState('');
+  const [draft,setDraft]=useState<{intent:ComputeIntent;bytes:Uint8Array;count:number}>();
+  const previewRevision=useRef(0);
+  function clearPreview(){previewRevision.current++;setDraft(undefined);setPreviewError('');}
+  function resetPrivacy(){clearPreview();setMode('local');setTerms('');setPrompt('');}
+
   const [budget, setBudget] = useState(''), [price, setPrice] = useState(''), [output, setOutput] = useState('32');
   const [pending, setPending] = useState(false), [failure, setFailure] = useState<unknown>();
   const [needInput, setNeedInput] = useState(false);
@@ -56,19 +65,41 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   const available = !wallet.error && wallet.data ? BigInt(wallet.data.gift) + BigInt(wallet.data.earned) + BigInt(wallet.data.purchased) : undefined;
   const maximum = prepared?.intent.quote ? BigInt(prepared.intent.quote.max_amount) : undefined;
   const affordable = maximum !== undefined && available !== undefined && selectedBudget !== undefined && maximum <= available && maximum <= BigInt(selectedBudget.limit) - BigInt(selectedBudget.spent) - BigInt(selectedBudget.reserved);
+  const needsTransfer=!intent || needInput;
+  const draftCurrent=!!draft && mode!=='local' && draft.intent.user===session.user_id &&
+    draft.intent.owner===session.personal_owner_id && (intent ? draft.intent.invocation===intent.invocation :
+      draft.intent.budget===budget && draft.intent.output===count && draft.intent.price.price_version===offer?.price_version);
+  async function previewTransfer(){
+    if(busy.current || mode==='local' || (!intent && (!offer || !canPrepare)))return;
+    const revision=++previewRevision.current;
+    setDraft(undefined);setPreviewError('');
+    try{
+      const projected=projectText(prompt,mode,terms);
+      const next=intent ? {intent,bytes:modelInput(intent.invocation,intent.price.model_version,projected.text,intent.output)} :
+        await newComputeIntent(session,budget,offer!,projected.text,count);
+      if(intent && (next.bytes.length.toString()!==intent.upload.size_bytes || await sha256(next.bytes)!==intent.upload.sha256))throw Error('ORIGINAL_MISMATCH');
+      if(alive.current && revision===previewRevision.current)setDraft({...next,count:projected.replacements});
+    }catch(err){
+      if(alive.current && revision===previewRevision.current)setPreviewError(err instanceof Error && err.message==='ORIGINAL_MISMATCH'?
+        '当前文本与原请求的摘要不一致，请核对原文本和遮盖规则。':'请核对输入大小、字符编码和遮盖规则（1 至 32 项，每项最多 256 个字符）。');
+    }
+  }
   const refresh = () => { void jobs.refetch(); void prices.refetch(); void budgets.refetch(); void wallet.refetch(); if (selected) { void current.refetch(); if (current.data?.execution_state === 'succeeded') void result.refetch(); } };
   const reconcile = async (approve = false) => {
     if (busy.current || initializing || recoveryError || (approve && !affordable)) return;
     busy.current = true; setPending(true); setFailure(undefined);
     try {
       let original = intent;
-      if (!original) {
-        if (!offer || !canPrepare) return;
-        const fresh = await newComputeIntent(session, budget, offer, prompt, count);
-        inputBytes.current = fresh.bytes; original = saveComputeIntent(sessionStorage, session, fresh.intent, true);
-        if (alive.current) setIntent(original);
+      if (needsTransfer) {
+        if(!draftCurrent || !draft)return;
+        inputBytes.current=draft.bytes;
+        if(!original){
+          original=saveComputeIntent(sessionStorage,session,draft.intent,true);
+          if(alive.current)setIntent(original);
+        }
+        clearPreview();
       }
-      if (needInput && prompt) inputBytes.current = modelInput(original.invocation, original.price.model_version, prompt, original.output);
+      if(!original)return;
       const approval = approve && prepared ? confirmComputeIntent(session, prepared) : undefined;
       if (approve && !approval) throw new Error('QUOTE_REQUIRES_CURRENT_VERIFICATION');
       setPrepared(null);
@@ -106,7 +137,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
       const next = await withdrawComputeIntent(api, sessionStorage, session, intent);
       if (!alive.current) return;
       setIntent(next); setNeedInput(false); inputBytes.current = undefined;
-      if (next?.job) setSelected(next.job.job_id); else setPrompt('');
+      if (next?.job) setSelected(next.job.job_id); else resetPrivacy();
       void jobs.refetch(); void budgets.refetch(); void wallet.refetch();
     } catch (error) {
       if (!alive.current) return;
@@ -116,7 +147,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   };
   const freshTask = () => {
     if (!intent || busy.current) return;
-    try { clearFinishedCreation(sessionStorage, session, intent); setIntent(null); setPrepared(null); setPrompt(''); setNeedInput(false); inputBytes.current = undefined; setFailure(undefined); }
+    try { clearFinishedCreation(sessionStorage, session, intent); setIntent(null); setPrepared(null); resetPrivacy(); setNeedInput(false); inputBytes.current = undefined; setFailure(undefined); }
     catch (error) { setFailure(error); }
   };
   const visibleJob = !current.error ? current.data : undefined;
@@ -131,13 +162,28 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
         {!intent && !prices.error && !prices.isPending && prices.data?.length === 0 && <Empty description="暂无可用模型节点" />}
         {!intent && !budgets.error && !budgets.isPending && activeBudgets.length === 0 && <p>先在<Link to="/account">积分与预算</Link>页面创建个人预算。</p>}
         {intent && <Alert type="info" showIcon title="保留原请求编号" description="继续会先只读查找原任务，恢复过程不会自动换键或重新运行模型。" />}
-        <Form layout="vertical" onFinish={() => { void reconcile(); }}>
-          {!intent && <div className="model-fields"><Form.Item label="个人预算" required><select aria-label="个人预算" value={budget} disabled={pending || recoveryError} onChange={event => setBudget(event.target.value)}><option value="">选择预算</option>{activeBudgets.map(row => <option key={row.root_budget_id} value={row.root_budget_id}>{row.root_budget_id.slice(0, 8)} · 可用 {formatCredits(BigInt(row.limit) - BigInt(row.spent) - BigInt(row.reserved))} 积分</option>)}</select></Form.Item>
-            <Form.Item label="可用模型" required><select aria-label="可用模型" value={price} disabled={pending || recoveryError} onChange={event => { setPrice(event.target.value); setOutput('32'); }}><option value="">选择模型节点</option>{(!prices.error ? prices.data : [])?.map(row => <option key={row.price_version} value={row.price_version}>{row.model_version} · 节点 {row.node_id.slice(0, 8)}</option>)}</select></Form.Item>
-            <Form.Item label="输出计费上限" required extra={offer ? `当前模型最多 ${offer.output_limit} 单位` : undefined}><Input aria-label="输出计费上限" inputMode="numeric" value={output} maxLength={4} disabled={pending || recoveryError} onChange={event => setOutput(event.target.value)} /></Form.Item></div>}
-          <Form.Item label={needInput ? '重新输入原文本' : '任务文本'} required={!intent || needInput}><Input.TextArea aria-label="任务文本" value={prompt} rows={6} maxLength={16000} disabled={pending || recoveryError || Boolean(intent && !needInput)} onChange={event => setPrompt(event.target.value)} placeholder={intent ? '提示词不会写入浏览器恢复记录。' : '输入希望模型处理的文本'} /></Form.Item>
-          <p className="muted">确认提交后，输入将发送给所选算力节点进行推理。本页不执行模型返回的工具调用。</p>
-          <Button htmlType="submit" aria-label={intent ? '核对原任务' : '获取报价'} aria-busy={pending} loading={pending} disabled={recoveryError || Boolean(intent?.withdrawn) || (!intent && !canPrepare)}>{intent ? '核对原任务' : '获取报价'}</Button>
+        <Form layout="vertical" onFinish={() => { if(!needsTransfer)void reconcile(); }}>
+          {!intent && <div className="model-fields"><Form.Item label="个人预算" required><select aria-label="个人预算" value={budget} disabled={pending || recoveryError} onChange={event => {clearPreview();setBudget(event.target.value);}}><option value="">选择预算</option>{activeBudgets.map(row => <option key={row.root_budget_id} value={row.root_budget_id}>{row.root_budget_id.slice(0, 8)} · 可用 {formatCredits(BigInt(row.limit) - BigInt(row.spent) - BigInt(row.reserved))} 积分</option>)}</select></Form.Item>
+            <Form.Item label="可用模型" required><select aria-label="可用模型" value={price} disabled={pending || recoveryError} onChange={event => { clearPreview();setPrice(event.target.value); setOutput('32'); }}><option value="">选择模型节点</option>{(!prices.error ? prices.data : [])?.map(row => <option key={row.price_version} value={row.price_version}>{row.model_version} · 节点 {row.node_id.slice(0, 8)}</option>)}</select></Form.Item>
+            <Form.Item label="输出计费上限" required extra={offer ? `当前模型最多 ${offer.output_limit} 单位` : undefined}><Input aria-label="输出计费上限" inputMode="numeric" value={output} maxLength={4} disabled={pending || recoveryError} onChange={event => {clearPreview();setOutput(event.target.value);}} /></Form.Item></div>}
+          <Form.Item label={needInput ? '重新输入原文本' : '任务文本'} required={!intent || needInput}><Input.TextArea aria-label="任务文本" value={prompt} rows={6} maxLength={16000} disabled={pending || recoveryError || Boolean(intent && !needInput)} onChange={event => {clearPreview();setPrompt(event.target.value);}} placeholder={intent ? '提示词不会写入浏览器恢复记录。' : '输入希望模型处理的文本'} /></Form.Item>
+          {needsTransfer && <>
+            <Form.Item label="文本处理方式"><select aria-label="文本处理方式" value={mode} disabled={pending} onChange={e=>{clearPreview();setMode(e.target.value as TransferMode);}}>
+              <option value="local">仅在浏览器编辑</option><option value="original">允许上传原文</option><option value="redacted">遮盖后允许上传</option>
+            </select></Form.Item>
+            {mode==='local'?<p>文本保留在此页面。离开后草稿会清除；离线推理可使用桌面端本地模型。</p>:<>
+              {mode==='redacted'&&<Form.Item label="需遮盖的原文片段" extra="每行一项，按原字符匹配；请检查姓名、联系方式和上下文线索。">
+                <Input.TextArea aria-label="需遮盖的原文片段" rows={3} maxLength={8224} value={terms} disabled={pending} onChange={e=>{clearPreview();setTerms(e.target.value);}}/>
+              </Form.Item>}
+              <p>获取报价时，平台会收到下方预览中的输入。提交任务后，执行节点可读取该内容；文本遮盖后仍可能保留可识别信息。</p>
+              <Button disabled={pending || (!intent && !canPrepare) || !prompt.trim()} onClick={()=>void previewTransfer()}>在本机生成上传预览</Button>
+              {previewError&&<Alert type="warning" title={previewError}/>}
+              {draftCurrent && draft && <section aria-label="上传内容预览"><p>模型 {draft.intent.price.model_version} · 个人预算 {draft.intent.budget} · {draft.bytes.length} 字节{mode==='redacted'&&` · 已遮盖 ${draft.count} 处`}</p>
+                <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{new TextDecoder().decode(draft.bytes)}</pre><p>SHA-256 <code>{draft.intent.upload.sha256}</code></p>
+              </section>}
+            </>}
+          </>}
+          <Button htmlType={needsTransfer?'button':'submit'} onClick={needsTransfer?()=>void reconcile():undefined} aria-label={needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'} aria-busy={pending} loading={pending} disabled={pending || recoveryError || Boolean(intent?.withdrawn) || (needsTransfer && !draftCurrent) || (!intent && !canPrepare)}>{needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'}</Button>
           {intent && <Button danger disabled={pending || recoveryError} onClick={() => { void withdraw(); }}>{intent.withdrawn ? '继续撤回核对' : intent.confirmed ? '停止原请求' : '删除未提交输入'}</Button>}
         </Form>
         {prepared && <Card className="quote-card"><p>本次最大预留</p><strong data-testid="quote-maximum">{formatCredits(prepared.intent.quote!.max_amount)} 积分</strong><p>报价编号 {prepared.intent.quote!.quote_id.slice(0, 8)} · 输出上限 {prepared.intent.output}</p><p className="muted">有效期和可用余额由服务端在提交时检查，实际费用按交付结果结算。</p>{!affordable && <Alert type="warning" title="当前余额或预算不足，或额度尚未读取" description="可以删除未提交输入后重新选择预算，创建预算不会增加余额。" />}<Button type="primary" aria-label="确认并提交原请求" aria-busy={pending} loading={pending} disabled={!affordable || Boolean(intent?.withdrawn)} onClick={() => { void reconcile(true); }}>确认并提交原请求</Button></Card>}
