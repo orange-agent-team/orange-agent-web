@@ -71,3 +71,14 @@ describe('immutable audio measurement', () => {
   }
  });
 });
+
+it('keeps the authenticated user separate from the chosen organization when checking artifacts and task metadata',async()=>{
+  const value={upload_id:'upload',artifact_id:'artifact',version_id:'v1',owner_id:'org',sha256:'a'.repeat(64),size_bytes:'1',media_type:'text/plain',state:'available'};
+  const fetcher=vi.fn(async()=>json(value));const client=new ComputeClient(fetcher,'org');
+  expect((await client.uploadStatus(session,'upload')).owner_id).toBe('org');
+  expect(fetcher).toHaveBeenCalledWith('/api/v1/owners/org/uploads/upload',expect.anything());
+  const wrong=new ComputeClient(async()=>json({...value,owner_id:session.personal_owner_id}),'org');
+  await expect(wrong.uploadStatus(session,'upload')).rejects.toMatchObject({status:403,code:'ACTOR_MISMATCH'});
+  const foreign=new ComputeClient(async()=>json({owner_id:'org',user_id:'another-user',data:[],next_cursor:null}),'org');
+  await expect(foreign.jobs(session)).rejects.toMatchObject({status:403,code:'ACTOR_MISMATCH'});
+});

@@ -8,6 +8,7 @@ import { authorityKey, type UserSession } from '../api/contracts';
 import { formatCredits } from '../api/accounts';
 import { modelInput, pathId, type Job } from '../api/compute-contracts';
 import { advanceComputeIntent, confirmComputeIntent, loadComputeIntent, newComputeIntent, saveComputeIntent, clearFinishedCreation, withdrawComputeIntent, OriginalInputRequired, type ComputeIntent, type VerifiedComputeQuote } from '../api/compute-intent';
+import TaskDocument from './TaskDocument';
 const api = new ComputeClient();
 const states: Record<Job['execution_state'], string> = { queued: '等待执行', running: '执行中', cancelling: '正在取消', succeeded: '已完成', failed: '执行失败', cancelled: '已取消' };
 const settlements: Record<Job['settlement_state'], string> = { pending: '结算待核对', settled: '已结算', reversed: '已冲正' };
@@ -149,11 +150,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
           {visibleJob.execution_state === 'cancelling' && <p>取消请求已接收，执行终止和积分释放仍待确认。</p>}
           {result.error && <Alert type="warning" showIcon title="结果暂不可读" description={failureText(result.error)} />}
           {result.isFetching && <Spin aria-label="正在核对结果权限" />}
-          {verifiedDocument && <pre data-testid="model-result-text">{verifiedDocument.text}</pre>}
-          {verifiedDocument?.kind==='transcription'&&<details><summary>查看转写时间段</summary>
-            <p>语言 {verifiedDocument.transcript.language} · 解码时长 {verifiedDocument.transcript.measurement.duration_ms} 毫秒</p>
-            <ol>{verifiedDocument.transcript.segments.map((s,i)=><li key={i}><span>{s.start_ms}–{s.end_ms} 毫秒</span> {s.text}</li>)}</ol>
-          </details>}
+          {verifiedDocument && <TaskDocument document={verifiedDocument}/>}
         </>}
       </Card>}
     </section><aside><Card><h2>我的任务</h2>{jobs.error ? <Alert type="warning" title="任务列表暂不可用" /> : jobs.isPending ? <Spin /> : jobs.data && <>

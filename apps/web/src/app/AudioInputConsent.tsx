@@ -7,18 +7,18 @@ import { pathId, type AudioGrantReceipt, type AudioMeasurement, type AudioTarget
 
 import AudioOrder from './AudioOrder';
 
-const api = new ComputeClient();
-type Props = {session:UserSession;upload:string;measurement?:AudioMeasurement};
 
-export default function AudioInputConsent({session,upload,measurement}:Props) {
-  const key='orange.audio-consent.v1:'+session.user_id+':'+session.personal_owner_id;
+type Props = {api:ComputeClient; initialBudget?:string;session:UserSession;upload:string;measurement?:AudioMeasurement};
+
+export default function AudioInputConsent({session,upload,measurement,api,initialBudget}:Props) {
+  const key='orange.audio-consent.v1:'+session.user_id+':'+api.owner(session)+(initialBudget?':'+initialBudget:'');
   const [grant,setGrant]=useState('');
   const [state,setState]=useState<AudioGrantReceipt['state']|'unknown'>('unknown');
   const [expires,setExpires]=useState('');
   const [receipt,setReceipt]=useState<AudioGrantReceipt>();
   const [observation,setObservation]=useState('');
   const [target,setTarget]=useState<AudioTarget>();
-  const [budget,setBudget]=useState('');
+  const [budget,setBudget]=useState(initialBudget??'');
   const [language,setLanguage]=useState('');
   const [approved,setApproved]=useState('');
   const [busy,setBusy]=useState(false);
@@ -76,7 +76,7 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
       <p role="status">{({active:'授权有效',revoked:'授权已撤回',expired:'授权已过期',unknown:'授权待核对'})[state]}
         {state==='active'&&expires&&<>，截止 {new Date(Number(expires)*1000).toLocaleTimeString()}</>}</p>
       {state==='active' && receipt?.grant_id===grant &&
-        <AudioOrder key={grant} receipt={receipt} session={session}/>}
+        <AudioOrder api={api} expectedBudget={initialBudget} key={grant} receipt={receipt} session={session}/>}
       {state==='expired'||state==='revoked'?
         <Button disabled={busy} onClick={()=>{try{sessionStorage.removeItem(key);setGrant('');setState('unknown');setApproved('');setError('');}catch{setError('无法清除本机恢复记录。');}}}>完成</Button>:
         <Button disabled={busy} onClick={()=>void perform(async signal=>{await api.withdrawAudio(session,grant,signal);if(!signal.aborted){setState('revoked');setExpires('');}})}>撤回音频授权</Button>}
@@ -86,7 +86,7 @@ export default function AudioInputConsent({session,upload,measurement}:Props) {
       <Button disabled={busy||!observation} onClick={()=>void perform(async signal=>{setTarget(undefined);setApproved('');const t=await api.audioTarget(observation,signal);if(!signal.aborted)setTarget(t);})}>核对转写节点</Button>
       {target&&<>
         <dl><dt>节点</dt><dd>{target.node_id}</dd><dt>地区</dt><dd>{target.region_id}</dd><dt>模型</dt><dd>{target.model_version}</dd></dl>
-        <label>预算编号<Input value={budget} disabled={busy} onChange={e=>{setBudget(e.target.value);setApproved('');}}/></label>
+        <label>预算编号<Input value={budget} disabled={busy||!!initialBudget} onChange={e=>{setBudget(e.target.value);setApproved('');}}/></label>
         <p><label>转写语言 <select value={language} disabled={busy} onChange={e=>{setLanguage(e.target.value);setApproved('');}}>
           <option value="">自动检测</option><option value="zh">中文</option><option value="en">英语</option></select></label></p>
         <p><label><input type="checkbox" checked={approved===consentScope} disabled={busy||!measurement||!budget} onChange={e=>setApproved(e.target.checked?consentScope:'')}/>允许此节点读取当前音频版本用于本次转写</label></p>

@@ -6,9 +6,9 @@ import type { AudioGrantReceipt, AudioQuote, AudioTarget, Job } from '../api/com
 import { ComputeClient } from '../api/compute-client';
 
 import {ApiFailure} from '../api/client';
-const api = new ComputeClient();
 
-export default function AudioOrder({session,receipt}:{session:UserSession;receipt:AudioGrantReceipt}) {
+
+export default function AudioOrder({session,receipt,api,expectedBudget}:{session:UserSession;receipt:AudioGrantReceipt;api:ComputeClient;expectedBudget?:string}) {
   const [quote,setQuote]=useState<AudioQuote>();
   const [target,setTarget]=useState<AudioTarget>();
   const [job,setJob]=useState<Job>();
@@ -21,11 +21,11 @@ export default function AudioOrder({session,receipt}:{session:UserSession;receip
   useEffect(()=>{
     const c=new AbortController();
     api.lookup(session,invocation,c.signal).then(value=>{
-      if(!c.signal.aborted){setJob(value?.job);setRecovered(true);}
+      if(!c.signal.aborted){if(value && expectedBudget && value.job.root_budget_id!==expectedBudget)throw Error('TEAM_BUDGET_MISMATCH');setJob(value?.job);setRecovered(true);}
     }).catch(()=>{if(!c.signal.aborted)setMessage('暂时无法核对原任务，请刷新。');});
     const timer=setInterval(()=>setNow(Date.now()),1000);
     return ()=>{clearInterval(timer);c.abort();active.current?.abort();};
-  },[session,invocation]);
+  },[session,invocation,api,expectedBudget]);
   async function perform(work:(signal:AbortSignal)=>Promise<void>){
     if(active.current)return;
     const c=new AbortController();active.current=c;setBusy(true);setMessage('');
@@ -37,18 +37,19 @@ export default function AudioOrder({session,receipt}:{session:UserSession;receip
     void perform(async signal=>{
       setQuote(undefined);setTarget(undefined);
       const existing=await api.lookup(session,invocation,signal);
-      if(existing){if(!signal.aborted)setJob(existing.job);return;}
+      if(existing){if(expectedBudget && existing.job.root_budget_id!==expectedBudget)throw Error('TEAM_BUDGET_MISMATCH');if(!signal.aborted)setJob(existing.job);return;}
       const price=await api.audioPrice(session,grant,signal);
       if(!price){if(!signal.aborted)setMessage('此节点当前没有可用的开发积分价格。');return;}
       const selected=await api.audioTarget(observation,signal);
       const q=await api.audioQuote(session,receipt,price,crypto.randomUUID(),signal);
+      if(expectedBudget&&q.root_budget_id!==expectedBudget)throw Error('TEAM_BUDGET_MISMATCH');
       if(!signal.aborted){setQuote(q);setTarget(selected);setNow(Date.now());}
     });
   }
   function order(q:AudioQuote){
     void perform(async signal=>{
       const existing=await api.lookup(session,invocation,signal);
-      if(existing){if(!signal.aborted)setJob(existing.job);return;}
+      if(existing){if(expectedBudget && existing.job.root_budget_id!==expectedBudget)throw Error('TEAM_BUDGET_MISMATCH');if(!signal.aborted)setJob(existing.job);return;}
       if(signal.aborted)return;
       if(BigInt(q.expires_at_unix)*1000n<=BigInt(Date.now())){setMessage('报价已过期，请重新获取。');return;}
       // One authoritative grant per invocation. Replays of this submission share its original business key.
@@ -58,7 +59,7 @@ export default function AudioOrder({session,receipt}:{session:UserSession;receip
     });
   }
   return <section aria-label="转写任务">
-    {job ? <p role="status">转写任务已提交 <code>{job.job_id}</code> · <Link to="/tasks">查看任务</Link></p> :
+    {job ? <p role="status">转写任务已提交 <code>{job.job_id}</code> · <Link to={api.owner(session)===session.personal_owner_id?'/tasks':'/organizations/'+encodeURIComponent(api.owner(session))+'/tasks?job='+encodeURIComponent(job.job_id)}>查看任务</Link></p> :
       <>
         <Button disabled={busy||!recovered} onClick={prepare}>获取转写报价</Button>
         {quote&&target&&<>

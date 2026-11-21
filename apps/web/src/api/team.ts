@@ -43,6 +43,11 @@ export class TeamClient extends UserClient{
   async policy(org:string,signal:AbortSignal){
     const v=await this.call(root(org)+'/budget-policy',{signal});if(!validatePolicy(v)||v.organization_id!==org||(v.hard_limit===null)!==(v.owner_ceiling===null)||v.hard_limit!==null&&(BigInt(v.hard_limit)>BigInt(v.owner_ceiling!)||BigInt(v.allocated)>BigInt(v.hard_limit)))throw Error('UNCONFIRMED_TEAM_LIMIT');return v;
   }
+  async budget(org:string,id:string,signal:AbortSignal){
+    const v=await this.call(root(org)+'/budgets/'+pathId(id),{signal});
+    if(!validateBudget(v)||v.organization_id!==org||v.root_budget_id!==id||!safeBudget(v))throw Error('UNCONFIRMED_ALLOCATION');
+    return v;
+  }
   async memberBudgets(org:string,after:string|undefined,signal:AbortSignal){
     const v=await this.call(root(org)+'/budgets'+page(after),{signal});
     if(!validateBudgets(v)||v.organization_id!==org||v.data.some(r=>r.organization_id!==org||!safeBudget(r)))throw Error('UNCONFIRMED_TEAM_BUDGETS');return v;

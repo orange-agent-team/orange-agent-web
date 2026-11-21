@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo,useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Alert, Button, Card, Input, Typography } from 'antd';
 import { ApiFailure } from '../api/client';
@@ -8,11 +8,12 @@ import type { UserSession } from '../api/contracts';
 
 import AudioInputConsent from './AudioInputConsent';
 
-const api = new ComputeClient();
+
 const formats: Record<string, AudioMedia> = { wav:'audio/wav', flac:'audio/flac', mp3:'audio/mpeg', ogg:'audio/ogg', opus:'audio/ogg', m4a:'audio/mp4' };
 type Selection = { file: File; media: AudioMedia; upload: string };
 
-export default function AudioPreflight({ session, invalidate }: { session: UserSession; invalidate: () => void }) {
+export default function AudioPreflight({ session, invalidate,ownerId,budgetId }: { session: UserSession; invalidate: () => void;ownerId?:string;budgetId?:string }) {
+  const api=useMemo(()=>new ComputeClient(undefined,ownerId),[ownerId]);
   const [selection, setSelection] = useState<Selection>();
   const [upload, setUpload] = useState('');
   const [pending, setPending] = useState(false);
@@ -83,7 +84,7 @@ export default function AudioPreflight({ session, invalidate }: { session: UserS
     } finally { if (active.current === controller) { active.current=null; setPending(false); } }
   }
   return <>
-    <Link to="/tasks">返回模型任务</Link>
+    <Link to={ownerId?'/organizations/'+pathId(ownerId)+'/tasks':'/tasks'}>返回模型任务</Link>
     <div className="page-heading"><h1>音频预检</h1></div>
     <Card title="选择音频">
       <p>上传到个人空间，或输入已有上传编号。服务端将读取实际音频并返回时长，本次预检不产生费用。</p>
@@ -100,6 +101,6 @@ export default function AudioPreflight({ session, invalidate }: { session: UserS
       <dt>源采样</dt><dd>{receipt.source_samples} 个采样点，{receipt.source_sample_rate} Hz</dd>
       <dt>对象版本</dt><dd><Typography.Text copyable>{receipt.version_id}</Typography.Text></dd>
     </dl></Card>}
-    <AudioInputConsent session={session} upload={upload} measurement={receipt} />
+    <AudioInputConsent api={api} initialBudget={budgetId} session={session} upload={upload} measurement={receipt} />
   </>;
 }

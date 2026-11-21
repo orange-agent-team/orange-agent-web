@@ -5,8 +5,12 @@ import { isArtifactError, decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, T
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
 const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audio/flac':'flac', 'audio/mpeg':'mp3', 'audio/ogg':'ogg', 'audio/mp4':'mov' };
-const base = (session: UserSession) => `/api/v1/owners/${pathId(session.personal_owner_id)}`;
+
 export class ComputeClient extends UserClient {
+ constructor(fetcher?:typeof fetch,private readonly selectedOwner?:string){super(fetcher);if(selectedOwner!==undefined)pathId(selectedOwner);}
+ owner(session:UserSession){return this.selectedOwner??session.personal_owner_id;}
+ private base(session:UserSession){return '/api/v1/owners/'+pathId(this.owner(session));}
+
  protected override rejection(status:number,body:unknown){return isArtifactError(body)?new ApiFailure(status,body.code,body.request_id):super.rejection(status,body);}
 
  async audioTarget(id: string, signal?: AbortSignal) {
@@ -16,26 +20,26 @@ export class ComputeClient extends UserClient {
  }
  async createAudioGrant(session:UserSession,request:AudioGrantRequest,signal?:AbortSignal){
   decodeCompute('AudioGrantRequest',request);
-  const value=decodeCompute('AudioGrantReceipt',await this.call(base(session)+'/transcription-input-grants',{
+  const value=decodeCompute('AudioGrantReceipt',await this.call(this.base(session)+'/transcription-input-grants',{
    method:'POST',signal,headers:write(session,request.grant_id),body:JSON.stringify(request)},200,90000));
   if(value.grant_id!==request.grant_id || value.invocation_id!==request.invocation_id || value.observation_id!==request.observation_id)
    throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return value;
  }
  async audioGrant(session:UserSession,id:string,signal?:AbortSignal){
-  const value=decodeCompute('AudioGrantReceipt',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{signal}));
+  const value=decodeCompute('AudioGrantReceipt',await this.call(this.base(session)+'/transcription-input-grants/'+pathId(id),{signal}));
   if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return value;
  }
  async audioPrice(session:UserSession, grant:string, signal?:AbortSignal){
-  const data=await this.call(base(session)+'/transcription-input-grants/'+pathId(grant)+'/prices',{signal});
+  const data=await this.call(this.base(session)+'/transcription-input-grants/'+pathId(grant)+'/prices',{signal});
   if(!Array.isArray(data)||data.length>1) throw new Error('INVALID_AUDIO_PRICE_LIST');
   return data.length ? decodeCompute('AudioPrice',data[0]) : null;
  }
  async audioQuote(session:UserSession, receipt:AudioGrantReceipt, price:AudioPrice, requestId:string, signal?:AbortSignal){
   pathId(requestId);
   const body={request_id:requestId,grant_id:receipt.grant_id,price_version:price.price_version};
-  const quote=decodeCompute('AudioQuote',await this.call(base(session)+'/transcription-quotes',{method:'POST',headers:write(session,requestId),body:JSON.stringify(body),signal},201));
+  const quote=decodeCompute('AudioQuote',await this.call(this.base(session)+'/transcription-quotes',{method:'POST',headers:write(session,requestId),body:JSON.stringify(body),signal},201));
   if(quote.grant_id!==receipt.grant_id || quote.invocation_id!==receipt.invocation_id || quote.observation_id!==receipt.observation_id ||
     quote.request_projection_digest!==receipt.projection_digest || quote.price_version!==price.price_version ||
     quote.price_per_minute!==price.price_per_minute || quote.fee_bps!==price.fee_bps ||
@@ -44,7 +48,7 @@ export class ComputeClient extends UserClient {
   return quote;
  }
  async withdrawAudio(session:UserSession,id:string,signal?:AbortSignal){
-  const value=decodeCompute('AudioWithdrawal',await this.call(base(session)+'/transcription-input-grants/'+pathId(id),{
+  const value=decodeCompute('AudioWithdrawal',await this.call(this.base(session)+'/transcription-input-grants/'+pathId(id),{
    method:'DELETE',headers:write(session,id),signal}));
   if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return value;
@@ -56,20 +60,20 @@ export class ComputeClient extends UserClient {
  }
  private ownedArtifact(session: UserSession, value: unknown, upload?: string) {
   const artifact = decodeCompute('Artifact', value);
-  if (artifact.owner_id !== session.personal_owner_id || (upload !== undefined && artifact.upload_id !== upload)) throw new ApiFailure(403, 'ACTOR_MISMATCH');
+  if (artifact.owner_id !== this.owner(session) || (upload !== undefined && artifact.upload_id !== upload)) throw new ApiFailure(403, 'ACTOR_MISMATCH');
   return artifact;
  }
  async beginUpload(session: UserSession, request: Upload, signal?: AbortSignal) {
   decodeCompute('Upload', request);
-  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads`, { method: 'POST', headers: write(session, request.upload_id), body: JSON.stringify(request), signal }), request.upload_id);
+  const artifact = this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads`, { method: 'POST', headers: write(session, request.upload_id), body: JSON.stringify(request), signal }), request.upload_id);
   if (artifact.sha256 !== request.sha256 || artifact.size_bytes !== request.size_bytes || artifact.media_type !== request.media_type) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE'); return artifact;
  }
  async deleteUpload(session: UserSession, upload: string) {
-  const artifact=this.ownedArtifact(session,await this.call(`${base(session)}/uploads/${pathId(upload)}`,{method:'DELETE',headers:write(session,upload)}),upload);
+  const artifact=this.ownedArtifact(session,await this.call(`${this.base(session)}/uploads/${pathId(upload)}`,{method:'DELETE',headers:write(session,upload)}),upload);
   if(artifact.state!=='deleted')throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');return artifact;
  }
  async uploadStatus(session: UserSession, upload: string, signal?: AbortSignal) {
-  return this.ownedArtifact(session, await this.call(`${base(session)}/uploads/${pathId(upload)}`, { signal }), upload);
+  return this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads/${pathId(upload)}`, { signal }), upload);
  }
  async putInput(session: UserSession, request: Upload, bytes: Uint8Array) {
   decodeCompute('Upload', request);
@@ -83,14 +87,14 @@ export class ComputeClient extends UserClient {
   return this.putContent(session, request, file, signal, 300000);
  }
  private async putContent(session: UserSession, request: Upload, body: BodyInit, signal?: AbortSignal, timeoutMs = 15000) {
-  const artifact = this.ownedArtifact(session, await this.call(`${base(session)}/uploads/${pathId(request.upload_id)}/content`, { method: 'PUT', headers: { ...write(session,request.upload_id), 'Content-Type': 'application/octet-stream' }, body, signal }, 200, timeoutMs),request.upload_id);
+  const artifact = this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads/${pathId(request.upload_id)}/content`, { method: 'PUT', headers: { ...write(session,request.upload_id), 'Content-Type': 'application/octet-stream' }, body, signal }, 200, timeoutMs),request.upload_id);
   if (artifact.state !== 'available' || artifact.sha256 !== request.sha256 || artifact.size_bytes !== request.size_bytes || artifact.media_type !== request.media_type) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return artifact;
  }
  async measureAudio(session: UserSession, input: Artifact, signal?: AbortSignal) {
   this.ownedArtifact(session, input);
   if (input.state !== 'available' || !audioFormats[input.media_type]) throw new Error('INVALID_AUDIO');
-  const data = await this.call(`${base(session)}/uploads/${pathId(input.upload_id)}/transcription-measurements`, {
+  const data = await this.call(`${this.base(session)}/uploads/${pathId(input.upload_id)}/transcription-measurements`, {
    method:'POST', headers:write(session,input.upload_id), body:JSON.stringify({version_id:input.version_id}), signal,
   }, 200, 90000);
   const result = decodeCompute('AudioMeasurement', data);
@@ -106,48 +110,48 @@ export class ComputeClient extends UserClient {
  }
  async quote(session: UserSession, request: QuoteRequest) {
   decodeCompute('QuoteRequest', request);
-  const result = decodeCompute('Quote', await this.call(`${base(session)}/text-quotes`, { method: 'POST', headers: write(session,request.request_id), body: JSON.stringify(request) },201));
+  const result = decodeCompute('Quote', await this.call(`${this.base(session)}/text-quotes`, { method: 'POST', headers: write(session,request.request_id), body: JSON.stringify(request) },201));
   if (result.root_budget_id !== request.root_budget_id || result.price_version !== request.price_version || result.output_limit !== request.output_limit.toString()) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return result;
  }
  async submit(session: UserSession, key: string, request: Submission) {
   decodeCompute(request.purpose==='transcription'?'AudioSubmission':'Submission',request);
-  const job = decodeCompute('Job', await this.call(`${base(session)}/jobs`, { method: 'POST', headers: write(session,key), body: JSON.stringify(request) }));
+  const job = decodeCompute('Job', await this.call(`${this.base(session)}/jobs`, { method: 'POST', headers: write(session,key), body: JSON.stringify(request) }));
   if (job.root_budget_id !== request.root_budget_id || job.invocation_id !== request.invocation_id) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE'); return job;
  }
  async bind(session: UserSession, job: Job, input: Artifact, projection: string) {
   decodeCompute('Job',job); this.ownedArtifact(session,input);
-  const result = decodeCompute('InputBinding', await this.call(`${base(session)}/jobs/${pathId(job.job_id)}/input`, { method: 'POST', headers: write(session,job.job_id), body: JSON.stringify({ upload_id: input.upload_id, version_id: input.version_id }) }));
+  const result = decodeCompute('InputBinding', await this.call(`${this.base(session)}/jobs/${pathId(job.job_id)}/input`, { method: 'POST', headers: write(session,job.job_id), body: JSON.stringify({ upload_id: input.upload_id, version_id: input.version_id }) }));
   if (result.job_id !== job.job_id || result.artifact_id !== input.artifact_id || result.version_id !== input.version_id || result.sha256 !== input.sha256 || result.size_bytes !== input.size_bytes || result.projection_digest !== projection) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE'); return result;
  }
  async jobs(session: UserSession, after?: string, signal?: AbortSignal) {
   const params = new URLSearchParams({ limit: '50' }); if (after) params.set('after',after);
-  const page = decodeCompute('JobPage',await this.call(`${base(session)}/jobs?${params}`,{ signal }));
-  if (page.owner_id !== session.personal_owner_id || page.user_id !== session.user_id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return page;
+  const page = decodeCompute('JobPage',await this.call(`${this.base(session)}/jobs?${params}`,{ signal }));
+  if (page.owner_id !== this.owner(session) || page.user_id !== session.user_id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return page;
  }
  async lookup(session: UserSession, invocation: string, signal?: AbortSignal) {
   let value: unknown;
-  try { value = await this.call(`${base(session)}/jobs/by-invocation/${pathId(invocation)}`,{ signal }); }
+  try { value = await this.call(`${this.base(session)}/jobs/by-invocation/${pathId(invocation)}`,{ signal }); }
   catch (error) { if (error instanceof ApiFailure && error.status === 404) return null; throw error; }
   const result = decodeCompute('JobLookup',value);
-  if (result.owner_id !== session.personal_owner_id || result.user_id !== session.user_id || result.job.invocation_id !== invocation) throw new ApiFailure(403,'ACTOR_MISMATCH'); return result;
+  if (result.owner_id !== this.owner(session) || result.user_id !== session.user_id || result.job.invocation_id !== invocation) throw new ApiFailure(403,'ACTOR_MISMATCH'); return result;
  }
  async job(session: UserSession, id: string, signal?: AbortSignal) {
-  const job = decodeCompute('Job',await this.call(`${base(session)}/jobs/${pathId(id)}`,{ signal }));
+  const job = decodeCompute('Job',await this.call(`${this.base(session)}/jobs/${pathId(id)}`,{ signal }));
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
  }
  async withdraw(session:UserSession,key:string,request:Submission){
   decodeCompute(request.purpose==='transcription'?'AudioSubmission':'Submission',request);
-  const value=decodeCompute('Withdrawal',await this.call(`${base(session)}/invocations/${pathId(request.invocation_id)}/withdraw`,{method:'POST',headers:write(session,key),body:JSON.stringify(request)}));
-  if(value.owner_id!==session.personal_owner_id||value.user_id!==session.user_id||value.invocation_id!==request.invocation_id||value.quote_id!==request.quote_id||(value.job&&(value.job.invocation_id!==request.invocation_id||value.job.root_budget_id!==request.root_budget_id)))throw new ApiFailure(403,'ACTOR_MISMATCH');return value;
+  const value=decodeCompute('Withdrawal',await this.call(`${this.base(session)}/invocations/${pathId(request.invocation_id)}/withdraw`,{method:'POST',headers:write(session,key),body:JSON.stringify(request)}));
+  if(value.owner_id!==this.owner(session)||value.user_id!==session.user_id||value.invocation_id!==request.invocation_id||value.quote_id!==request.quote_id||(value.job&&(value.job.invocation_id!==request.invocation_id||value.job.root_budget_id!==request.root_budget_id)))throw new ApiFailure(403,'ACTOR_MISMATCH');return value;
  }
  async cancel(session: UserSession, id: string, key: string) {
-  const job = decodeCompute('Job',await this.call(`${base(session)}/jobs/${pathId(id)}/cancel`,{ method: 'POST', headers: write(session,key), body: '{}' }));
+  const job = decodeCompute('Job',await this.call(`${this.base(session)}/jobs/${pathId(id)}/cancel`,{ method: 'POST', headers: write(session,key), body: '{}' }));
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
  }
  async result(session: UserSession, id: string, signal?: AbortSignal) {
   let value: unknown;
-  try { value = await this.call(`${base(session)}/jobs/${pathId(id)}/result`,{ signal }); }
+  try { value = await this.call(`${this.base(session)}/jobs/${pathId(id)}/result`,{ signal }); }
   catch (error) { if (error instanceof ApiFailure && [403,410].includes(error.status)) throw new ContentUnavailable('CONTENT_UNAVAILABLE'); throw error; }
   return this.ownedArtifact(session,value);
  }
@@ -179,7 +183,7 @@ export class ComputeClient extends UserClient {
   if (external?.aborted) cancel(); else external?.addEventListener('abort',cancel,{ once: true });
   const timer = setTimeout(cancel,30000);
   try {
-   const url = `${base(session)}/uploads/${pathId(artifact.upload_id)}/content?${new URLSearchParams({ version_id: artifact.version_id })}`;
+   const url = `${this.base(session)}/uploads/${pathId(artifact.upload_id)}/content?${new URLSearchParams({ version_id: artifact.version_id })}`;
    const response = await this.fetcher(url,{ signal: deadline.signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers: { Accept: 'application/octet-stream' } });
    if (response.status !== 200 || !response.body) { await response.body?.cancel(); if ([403,410].includes(response.status)) throw new ContentUnavailable('CONTENT_UNAVAILABLE'); throw new ApiFailure(response.status,'RESULT_UNAVAILABLE'); }
    const length = response.headers.get('Content-Length');
