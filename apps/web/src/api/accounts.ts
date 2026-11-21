@@ -3,17 +3,20 @@ import schema from '../../../../docs/contracts/account.schema.json' with { type:
 export interface Budget { root_budget_id: string; scope_id: string; limit: string; spent: string; reserved: string; status: 'active' | 'closing' | 'closed' }
 export interface CreateBudget { scope_id: string; limit: string }
 export interface Wallet { user_id: string; owner_id: string; gift: string; earned: string; purchased: string; reserved_gift: string; reserved_earned: string; reserved_purchased: string; pending_earned: string }
+export interface ProviderIncome {job_id:string;units:string;eligible_unix:string;state:'pending'|'review'|'available'}
+export interface IncomePage {user_id:string;owner_id:string;data:ProviderIncome[];next_cursor:string|null}
 export interface BudgetPage { user_id: string; owner_id: string; data: Budget[]; next_cursor: string | null }
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(schema);
 const validators = {
   Wallet: ajv.compile<Wallet>({ $ref: `${schema.$id}#/$defs/WalletView` }),
   Budget: ajv.compile<Budget>({ $ref: `${schema.$id}#/$defs/BudgetView` }),
   CreateBudget: ajv.compile<CreateBudget>({ $ref: `${schema.$id}#/$defs/CreateBudget` }),
+  IncomePage: ajv.compile<IncomePage>({$ref:`${schema.$id}#/$defs/ProviderIncomeList`}),
   BudgetPage: ajv.compile<BudgetPage>({ $ref: `${schema.$id}#/$defs/PersonalBudgetList` }),
 };
-type Values = { Wallet: Wallet; Budget: Budget; CreateBudget: CreateBudget; BudgetPage: BudgetPage };
+type Values = { IncomePage:IncomePage; Wallet: Wallet; Budget: Budget; CreateBudget: CreateBudget; BudgetPage: BudgetPage };
 const maximum = 9223372036854775807n;
-const amounts = new Set(['gift', 'earned', 'purchased', 'reserved_gift', 'reserved_earned', 'reserved_purchased', 'pending_earned', 'limit', 'spent', 'reserved']);
+const amounts = new Set(['units','gift', 'earned', 'purchased', 'reserved_gift', 'reserved_earned', 'reserved_purchased', 'pending_earned', 'limit', 'spent', 'reserved']);
 export function decodeAccount<K extends keyof Values>(kind: K, value: unknown): Values[K] {
   if (!validators[kind](value)) throw new Error('INVALID_ACCOUNT_RESPONSE');
   const check = (object: unknown): void => {

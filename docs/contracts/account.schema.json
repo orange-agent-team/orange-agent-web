@@ -435,6 +435,84 @@
         "owner_id",
         "data"
       ]
+    },
+    "ProviderIncome": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "units": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical microcredits. Checked Rust money also rejects values above 9223372036854775807. Never a JS number."
+        },
+        "eligible_unix": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "review",
+            "available"
+          ]
+        }
+      },
+      "required": [
+        "job_id",
+        "units",
+        "eligible_unix",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "ProviderIncomeList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "user_id",
+        "owner_id",
+        "data",
+        "next_cursor"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ProviderIncome"
+          }
+        },
+        "next_cursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   }
 }

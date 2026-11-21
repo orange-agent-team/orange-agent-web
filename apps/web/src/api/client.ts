@@ -53,6 +53,12 @@ export class UserClient {
     if (result.user_id !== session.user_id || result.owner_id !== session.personal_owner_id) throw new ApiFailure(403, 'ACTOR_MISMATCH');
     return result;
   }
+  async earnings(session:UserSession,after?:string,signal?:AbortSignal){
+    const params=new URLSearchParams({limit:'25'});if(after)params.set('after',after);
+    const result=decodeAccount('IncomePage',await this.call(`/api/v1/account/earnings?${params}`,{signal}));
+    if(result.user_id!==session.user_id || result.owner_id!==session.personal_owner_id)throw new ApiFailure(403,'ACTOR_MISMATCH');
+    return result;
+  }
   async budgets(session: UserSession, after?: string, signal?: AbortSignal) {
     const params = new URLSearchParams({ limit: '50' }); if (after) params.set('after', after);
     const result = decodeAccount('BudgetPage', await this.call(`/api/v1/account/budgets?${params}`, { signal }));
