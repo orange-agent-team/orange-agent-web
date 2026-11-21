@@ -40,6 +40,7 @@ export interface InputBinding { job_id: string; artifact_id: string; version_id:
 export interface Result { response_id: string; text: string; tool_calls: { id: string; name: string; arguments: Record<string, unknown> }[]; native_usage: { input_tokens: number; output_tokens: number } | null; finish_reason: 'stop' | 'tool_calls' }
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
+export const isArtifactError=compile<{code:string;message:string;request_id:string;retry_class:string}>(artifacts,'ApiError');
 const validators = {
  AudioPrice: compile<AudioPrice>(artifacts,'TranscriptionPrice'),
  AudioQuote: compile<AudioQuote>(artifacts,'TranscriptionQuoteView'),

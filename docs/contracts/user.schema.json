@@ -159,7 +159,10 @@
             "IDEMPOTENCY_CONFLICT",
             "VERSION_CONFLICT",
             "CAPACITY_EXCEEDED",
-            "LAST_OWNER_REQUIRED"
+            "LAST_OWNER_REQUIRED",
+            "TEAM_BUDGET_EXCEEDED",
+            "TEAM_BUDGET_NOT_CONFIGURED",
+            "BUDGET_ALREADY_COMMITTED"
           ]
         },
         "message": {

@@ -1,6 +1,6 @@
 import {Ajv2020} from 'ajv/dist/2020.js';
 import schema from '../../../../docs/contracts/test-checkout.schema.json' with {type:'json'};
-import {UserClient} from './client';
+import {UserClient,ApiFailure} from './client';
 import type {UserSession} from './contracts';
 import {pathId} from './compute-contracts';
 
@@ -22,7 +22,9 @@ const refund=ajv.compile<Refund>({$ref:schema.$id+'#/$defs/TestRefundView'});
 export const validOrder=(s:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s);
 function validOffer(v:Offer){return BigInt(v.microcredits)<=9223372036854775807n;}
 const root=(s:UserSession)=>'/api/v1/owners/'+pathId(s.personal_owner_id);
+const checkoutError=ajv.compile<{code:string}>({$ref:schema.$id+'#/$defs/ApiError'});
 export class CheckoutClient extends UserClient{
+  protected override rejection(status:number,body:unknown){return checkoutError(body)?new ApiFailure(status,body.code):super.rejection(status,body);}
   async offers(s:UserSession,signal:AbortSignal){
     const v=await this.call(root(s)+'/credit-offers',{signal});
     if(!offers(v)||!v.every(validOffer)||new Set(v.map(x=>x.offer_id)).size!==v.length)throw Error('INVALID_CREDIT_OFFERS');

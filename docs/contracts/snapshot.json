@@ -1,15 +1,15 @@
 {
-  "version": "0.18.0",
+  "version": "0.19.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "de3c54e0448b01b8cdfe1d3d5803520556c4a0ed",
+  "source_commit": "340bf7d78b4277099fbac8b3204acd09643635fd",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
-      "sha256": "790b2d7e76055c0eef685ab69ead49ef394b07553f086a3f22b91fd65f3c9965"
+      "sha256": "74184c6a73b54217b162d2ff31eb80813008ea32c2122c0a1eb463edc251437c"
     },
     "user.openapi.json": {
       "source": "contracts/openapi/user.v1.json",
-      "sha256": "4854fb809c55abab868f154f32a0426d2f5ae889d09c154eb7dc83eb26bc4335"
+      "sha256": "117d8d71effcc619606d1e5ae25f198d7ca275a9b7d5232784fa11ec57fab2de"
     },
     "account.schema.json": {
       "source": "contracts/json-schema/account.schema.json",
@@ -90,6 +90,14 @@
     "test-checkout.openapi.json": {
       "source": "contracts/openapi/test-checkout.v1.json",
       "sha256": "27a0d11af1ea3a8e826d4086127864bfa58cba4f7707f626e9b6598de8727195"
+    },
+    "team-governance.schema.json": {
+      "source": "contracts/json-schema/team-governance.schema.json",
+      "sha256": "49417e467f8cc7841f7b0672fe5c919cdd3aa1ec5d563d88188bfa21e56ebb3c"
+    },
+    "team-governance.openapi.json": {
+      "source": "contracts/openapi/team-governance.v1.json",
+      "sha256": "f71a7e361be5d8d6f8411cd4ed9aacaf6a403721cd1a7e11c18883ef2a402db5"
     }
   }
 }

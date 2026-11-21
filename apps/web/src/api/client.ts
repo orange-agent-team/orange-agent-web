@@ -5,6 +5,10 @@ export class ApiFailure extends Error {
 }
 export class UserClient {
   constructor(protected readonly fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init)) {}
+  protected rejection(status:number,body:unknown):ApiFailure{
+    try{const error=decode('Error',body);return new ApiFailure(status,error.code,error.request_id);}
+    catch{return new ApiFailure(status,'REQUEST_REJECTED');}
+  }
   protected async call(path: string, init: RequestInit = {}, expectedStatus = 200, timeoutMs = 15000): Promise<unknown> {
     if (!path.startsWith('/api/v1/') || path.includes('://') || path.includes('\\')) throw new Error('INVALID_PATH');
     const deadline = new AbortController();
@@ -21,10 +25,7 @@ export class UserClient {
       if (response.status === 204) return undefined;
       let body: unknown;
       try { body = await response.json(); } catch (error) { if (init.signal?.aborted) throw error; throw new ApiFailure(response.status, 'INVALID_RESPONSE'); }
-      if (!response.ok) {
-        try { const error = decode('Error', body); throw new ApiFailure(response.status, error.code, error.request_id); }
-        catch (error) { if (error instanceof ApiFailure) throw error; throw new ApiFailure(response.status, 'REQUEST_REJECTED'); }
-      }
+      if (!response.ok) throw this.rejection(response.status,body);
       return body;
     } finally { clearTimeout(timer); init.signal?.removeEventListener('abort', cancel); }
   }

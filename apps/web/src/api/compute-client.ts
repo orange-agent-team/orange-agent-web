@@ -1,12 +1,14 @@
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
-import { decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
+import { isArtifactError, decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
 const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audio/flac':'flac', 'audio/mpeg':'mp3', 'audio/ogg':'ogg', 'audio/mp4':'mov' };
 const base = (session: UserSession) => `/api/v1/owners/${pathId(session.personal_owner_id)}`;
 export class ComputeClient extends UserClient {
+ protected override rejection(status:number,body:unknown){return isArtifactError(body)?new ApiFailure(status,body.code,body.request_id):super.rejection(status,body);}
+
  async audioTarget(id: string, signal?: AbortSignal) {
   const target=decodeCompute('AudioTarget',await this.call('/api/v1/transcription-targets/'+pathId(id),{signal}));
   if(target.observation_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');

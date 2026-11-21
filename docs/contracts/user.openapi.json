@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange User Identity and Organization API",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Development candidate. Separate user OIDC client and Secure cookie; actor comes from validated session. Hosted Agent, paid model calls, invitations and payments are not implemented by this contract."
   },
   "servers": [
@@ -181,7 +181,10 @@
               "IDEMPOTENCY_CONFLICT",
               "VERSION_CONFLICT",
               "CAPACITY_EXCEEDED",
-              "LAST_OWNER_REQUIRED"
+              "LAST_OWNER_REQUIRED",
+              "TEAM_BUDGET_EXCEEDED",
+              "TEAM_BUDGET_NOT_CONFIGURED",
+              "BUDGET_ALREADY_COMMITTED"
             ]
           },
           "message": {
