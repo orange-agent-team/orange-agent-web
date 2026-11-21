@@ -82,3 +82,16 @@ it('keeps the authenticated user separate from the chosen organization when chec
   const foreign=new ComputeClient(async()=>json({owner_id:'org',user_id:'another-user',data:[],next_cursor:null}),'org');
   await expect(foreign.jobs(session)).rejects.toMatchObject({status:403,code:'ACTOR_MISMATCH'});
 });
+
+it('binds funding to the original quote, actor, scope, ceiling and complete budget arithmetic',async()=>{
+  const q={quote_id:'q',price_version:'p',root_budget_id:'root',max_amount:'100',expires_at_unix:'4102444800'};
+  const original={quote_id:'q',price_version:'p',requester_id:session.user_id,owner_id:session.personal_owner_id,account_kind:'personal',root_budget_id:'root',
+    max_microcredits:'100',budget_limit:'300',budget_spent:'80',budget_reserved:'100',budget_remaining:'120',wallet_available:'120',
+    status:'sufficient',observed_unix:'1800000000',expires_unix:'4102444800'};
+  async function read(patch:Record<string,unknown>){return new ComputeClient(vi.fn<typeof fetch>().mockResolvedValue(json({...original,...patch}))).funding(session,q);}
+  expect((await read({})).budget_spent).toBe('80');
+  for(const changed of [{quote_id:'other'},{requester_id:'other'},{owner_id:'other'},{price_version:'other'},{root_budget_id:'other'},
+    {max_microcredits:'99'},{wallet_available:null},{budget_remaining:'121'},{wallet_available:'99'}]){
+    await expect(read(changed)).rejects.toThrow();
+  }
+});

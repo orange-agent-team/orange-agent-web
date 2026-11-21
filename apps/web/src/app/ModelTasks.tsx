@@ -9,6 +9,7 @@ import { formatCredits } from '../api/accounts';
 import { modelInput, pathId, sha256, type Job } from '../api/compute-contracts';
 import { advanceComputeIntent, confirmComputeIntent, loadComputeIntent, newComputeIntent, saveComputeIntent, clearFinishedCreation, withdrawComputeIntent, OriginalInputRequired, type ComputeIntent, type VerifiedComputeQuote } from '../api/compute-intent';
 import TaskDocument from './TaskDocument';
+import {FundingDetails,useQuoteFunding} from './QuoteFunding';
 import {projectText,type TransferMode} from '../api/text-transfer';
 const api = new ComputeClient();
 const states: Record<Job['execution_state'], string> = { queued: '等待执行', running: '执行中', cancelling: '正在取消', succeeded: '已完成', failed: '执行失败', cancelled: '已取消' };
@@ -50,7 +51,6 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
     setInitializing(false);
     return () => { alive.current = false; inputBytes.current = undefined; };
   }, [session.user_id, session.personal_owner_id]);
-  const wallet = useQuery({ queryKey: [scope, 'wallet'], queryFn: ({ signal }) => api.wallet(session, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const prices = useQuery({ queryKey: [scope, 'text-prices'], queryFn: ({ signal }) => api.prices(signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const budgets = useQuery({ queryKey: [scope, 'model-budgets'], queryFn: ({ signal }) => api.budgets(session, undefined, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
@@ -61,10 +61,9 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
   const activeBudgets = !budgets.error ? budgets.data?.data.filter(row => row.status === 'active') ?? [] : [];
   const count = /^[1-9][0-9]{0,3}$/.test(output) ? Number(output) : 0;
   const canPrepare = Boolean(offer && activeBudgets.some(row => row.root_budget_id === budget) && prompt.trim() && count > 0 && count <= Number(offer.output_limit));
-  const selectedBudget = activeBudgets.find(row => row.root_budget_id === (intent?.budget ?? budget));
-  const available = !wallet.error && wallet.data ? BigInt(wallet.data.gift) + BigInt(wallet.data.earned) + BigInt(wallet.data.purchased) : undefined;
-  const maximum = prepared?.intent.quote ? BigInt(prepared.intent.quote.max_amount) : undefined;
-  const affordable = maximum !== undefined && available !== undefined && selectedBudget !== undefined && maximum <= available && maximum <= BigInt(selectedBudget.limit) - BigInt(selectedBudget.spent) - BigInt(selectedBudget.reserved);
+  const funding=useQuoteFunding(api,session,prepared?.intent.quote);
+  const affordable = !funding.error && !funding.isFetching && funding.data?.status==='sufficient'
+    && BigInt(funding.data.expires_unix)*1000n>BigInt(Date.now());
   const needsTransfer=!intent || needInput;
   const draftCurrent=!!draft && mode!=='local' && draft.intent.user===session.user_id &&
     draft.intent.owner===session.personal_owner_id && (intent ? draft.intent.invocation===intent.invocation :
@@ -84,7 +83,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
         '当前文本与原请求的摘要不一致，请核对原文本和遮盖规则。':'请核对输入大小、字符编码和遮盖规则（1 至 32 项，每项最多 256 个字符）。');
     }
   }
-  const refresh = () => { void jobs.refetch(); void prices.refetch(); void budgets.refetch(); void wallet.refetch(); if (selected) { void current.refetch(); if (current.data?.execution_state === 'succeeded') void result.refetch(); } };
+  const refresh = () => { void jobs.refetch(); void prices.refetch(); void budgets.refetch(); if(prepared)void funding.refetch(); if (selected) { void current.refetch(); if (current.data?.execution_state === 'succeeded') void result.refetch(); } };
   const reconcile = async (approve = false) => {
     if (busy.current || initializing || recoveryError || (approve && !affordable)) return;
     busy.current = true; setPending(true); setFailure(undefined);
@@ -138,7 +137,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
       if (!alive.current) return;
       setIntent(next); setNeedInput(false); inputBytes.current = undefined;
       if (next?.job) setSelected(next.job.job_id); else resetPrivacy();
-      void jobs.refetch(); void budgets.refetch(); void wallet.refetch();
+      void jobs.refetch(); void budgets.refetch(); if(prepared)void funding.refetch();
     } catch (error) {
       if (!alive.current) return;
       setFailure(error); try { const saved = loadComputeIntent(sessionStorage, session); setIntent(saved); if (saved?.job) setSelected(saved.job.job_id); } catch { setRecoveryError(true); }
@@ -186,7 +185,7 @@ export default function ModelTasks({ session, invalidate }: { session: UserSessi
           <Button htmlType={needsTransfer?'button':'submit'} onClick={needsTransfer?()=>void reconcile():undefined} aria-label={needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'} aria-busy={pending} loading={pending} disabled={pending || recoveryError || Boolean(intent?.withdrawn) || (needsTransfer && !draftCurrent) || (!intent && !canPrepare)}>{needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'}</Button>
           {intent && <Button danger disabled={pending || recoveryError} onClick={() => { void withdraw(); }}>{intent.withdrawn ? '继续撤回核对' : intent.confirmed ? '停止原请求' : '删除未提交输入'}</Button>}
         </Form>
-        {prepared && <Card className="quote-card"><p>本次最大预留</p><strong data-testid="quote-maximum">{formatCredits(prepared.intent.quote!.max_amount)} 积分</strong><p>报价编号 {prepared.intent.quote!.quote_id.slice(0, 8)} · 输出上限 {prepared.intent.output}</p><p className="muted">有效期和可用余额由服务端在提交时检查，实际费用按交付结果结算。</p>{!affordable && <Alert type="warning" title="当前余额或预算不足，或额度尚未读取" description="可以删除未提交输入后重新选择预算，创建预算不会增加余额。" />}<Button type="primary" aria-label="确认并提交原请求" aria-busy={pending} loading={pending} disabled={!affordable || Boolean(intent?.withdrawn)} onClick={() => { void reconcile(true); }}>确认并提交原请求</Button></Card>}
+        {prepared && <Card className="quote-card"><FundingDetails query={funding}/><p>本次最大预留</p><strong data-testid="quote-maximum">{formatCredits(prepared.intent.quote!.max_amount)} 积分</strong><p>模型版本 {prepared.intent.price.model_version} · 报价编号 {prepared.intent.quote!.quote_id.slice(0, 8)} · 输出上限 {prepared.intent.output}</p><p className="muted">有效期和可用余额由服务端在提交时检查，实际费用按交付结果结算。</p><Button type="primary" aria-label="确认并提交原请求" aria-busy={pending} loading={pending} disabled={!affordable || Boolean(intent?.withdrawn)} onClick={() => { void reconcile(true); }}>确认并提交原请求</Button></Card>}
         {intent?.job && <div className="model-request-foot"><Typography.Text copyable={{ text: intent.job.job_id }}>任务 {intent.job.job_id.slice(0, 8)}</Typography.Text><Button disabled={pending || (!intent.bound && intent.job.execution_state === 'queued')} onClick={freshTask}>开始另一任务</Button></div>}
       </>}
     </Card>

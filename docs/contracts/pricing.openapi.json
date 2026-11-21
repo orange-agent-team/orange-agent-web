@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange trusted text pricing API",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Current user session, current content and root budget grants. Server-owned fixed-model input counts; caller cannot supply unit prices or usage. Development-only admissions; no public price mutation/payment endpoint."
   },
   "paths": {
@@ -118,6 +118,62 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/owners/{owner}/quotes/{quote}/funding": {
+      "get": {
+        "operationId": "getOriginalQuoteFunding",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot for this requester and budget. Reservation authority is rechecked at submission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteFundingView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Versioned development pricing data; not a payment or resource-cleanup authorization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "quote",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
       }
     }
   },
@@ -326,6 +382,114 @@
             "type": "string"
           }
         }
+      },
+      "QuoteFundingView": {
+        "type": "object",
+        "properties": {
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "requester_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "root_budget_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "price_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "max_microcredits": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "budget_limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "budget_spent": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "budget_reserved": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "budget_remaining": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "observed_unix": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "expires_unix": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,19})$"
+          },
+          "account_kind": {
+            "enum": [
+              "personal",
+              "team"
+            ]
+          },
+          "wallet_available": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,19})$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "sufficient",
+              "expired",
+              "budget_closed",
+              "spending_paused",
+              "insufficient_budget",
+              "insufficient_funds"
+            ]
+          }
+        },
+        "required": [
+          "quote_id",
+          "requester_id",
+          "owner_id",
+          "root_budget_id",
+          "price_version",
+          "max_microcredits",
+          "budget_limit",
+          "budget_spent",
+          "budget_reserved",
+          "budget_remaining",
+          "observed_unix",
+          "expires_unix",
+          "account_kind",
+          "wallet_available",
+          "status"
+        ],
+        "additionalProperties": false
       }
     }
   }

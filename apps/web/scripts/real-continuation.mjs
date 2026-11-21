@@ -21,6 +21,11 @@ export async function continueModel({page,ctx,origin,f,run,input,job,op,quote,he
   if(nq.invocation_id!==step.invocation_id||nq.quote_id===quote.quote_id||nq.request_projection_digest!==step.request_projection_digest)
     throw Error('Continuation quote crossed turn identity');
   const nextJob=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===base+'/submit');
+  const preview=page.getByRole('region',{name:'原报价资金核对'});await preview.getByText('预留本次上限后的预算余量',{exact:true}).waitFor();
+  const fundingResponse=await page.request.get(origin+'/api/v1/owners/'+encodeURIComponent(f.owner)+'/quotes/'+encodeURIComponent(nq.quote_id)+'/funding');
+  const funding=await fundingResponse.json();
+  if(fundingResponse.status()!==200||funding.root_budget_id!==f.budget||BigInt(funding.budget_spent)<=0n||
+     BigInt(funding.budget_spent)+BigInt(funding.budget_reserved)+BigInt(funding.budget_remaining)!==BigInt(funding.budget_limit))throw Error('Continuation budget lost the previous turn');
   await page.getByRole('button',{name:'确认报价并提交模型作业'}).click();
   const response=await nextJob,nj=await response.json();
   if(response.status()!==200||nj.job_id===job.job_id||nj.invocation_id!==step.invocation_id)throw Error('Continuation submission failed');

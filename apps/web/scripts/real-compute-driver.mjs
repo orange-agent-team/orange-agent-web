@@ -85,6 +85,8 @@ try{
  if(sessionData.includes(sensitive)||sessionData.includes('Say a short greeting. Contact:'))throw Error('Raw input or review terms persisted');
  console.log(JSON.stringify({default_local_only:true,changed_preview_revoked:true,redacted_upload_matches_digest:true,raw_literal_sent:false}));
  await page.getByTestId('quote-maximum').waitFor();const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/jobs'));
+ const funding=page.getByRole('region',{name:'原报价资金核对'});await funding.getByText('账户可用余额',{exact:true}).waitFor();
+ if(!(await funding.innerText()).includes(f.owner))throw Error('Original personal owner missing from funding view');
  await page.getByRole('button',{name:'确认并提交原请求',exact:true}).click();const response=await submitted;if(response.status()!==200)throw Error('Actual model Job not accepted');const job=await response.json();
  await page.getByTestId('model-result-text').waitFor({timeout:60000});const text=await page.getByTestId('model-result-text').innerText();if(!text.trim())throw Error('No actual model output rendered');
  const base=`/api/v1/owners/${encodeURIComponent(f.owner)}`;

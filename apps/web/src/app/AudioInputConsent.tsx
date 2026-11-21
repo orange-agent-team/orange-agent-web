@@ -89,6 +89,7 @@ export default function AudioInputConsent({session,upload,measurement,api,initia
         <label>预算编号<Input value={budget} disabled={busy||!!initialBudget} onChange={e=>{setBudget(e.target.value);setApproved('');}}/></label>
         <p><label>转写语言 <select value={language} disabled={busy} onChange={e=>{setLanguage(e.target.value);setApproved('');}}>
           <option value="">自动检测</option><option value="zh">中文</option><option value="en">英语</option></select></label></p>
+        {measurement&&<p>获准的节点可在授权期内读取原音频版本 <code>{measurement.version_id}</code>。文字遮盖规则仅适用于文本任务。</p>}
         <p><label><input type="checkbox" checked={approved===consentScope} disabled={busy||!measurement||!budget} onChange={e=>setApproved(e.target.checked?consentScope:'')}/>允许此节点读取当前音频版本用于本次转写</label></p>
         <Button type="primary" disabled={busy||!initialized||!measurement||!budget||approved!==consentScope} onClick={submit}>授权 15 分钟</Button>
       </>}

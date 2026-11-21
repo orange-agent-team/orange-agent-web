@@ -87,7 +87,8 @@ export default function AudioPreflight({ session, invalidate,ownerId,budgetId }:
     <Link to={ownerId?'/organizations/'+pathId(ownerId)+'/tasks':'/tasks'}>返回模型任务</Link>
     <div className="page-heading"><h1>音频预检</h1></div>
     <Card title="选择音频">
-      <p>上传到个人空间，或输入已有上传编号。服务端将读取实际音频并返回时长，本次预检不产生费用。</p>
+      <p>上传目的地为{ownerId?'团队空间':'个人空间'} <code>{ownerId??session.personal_owner_id}</code>。选择文件后可先核对范围；点击上传时平台将收到原音频并测量时长。此次预检免费。</p>
+      {selection&&<p aria-label="待上传音频">待上传文件 {selection.file.name} · {selection.file.size} 字节 · {selection.media}</p>}
       <label>本地文件 <input ref={picker} type="file" accept=".wav,.flac,.mp3,.ogg,.opus,.m4a" disabled={pending} onChange={event => select(event.target.files?.[0])} /></label>
       <p><label>上传编号<Input value={upload} disabled={pending} onChange={event => {
         clear(); setSelection(undefined); setUpload(event.target.value); if (picker.current) picker.current.value='';

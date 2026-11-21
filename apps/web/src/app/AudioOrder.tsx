@@ -6,12 +6,14 @@ import type { AudioGrantReceipt, AudioQuote, AudioTarget, Job } from '../api/com
 import { ComputeClient } from '../api/compute-client';
 
 import {ApiFailure} from '../api/client';
+import {FundingDetails,useQuoteFunding} from './QuoteFunding';
 
 
 export default function AudioOrder({session,receipt,api,expectedBudget}:{session:UserSession;receipt:AudioGrantReceipt;api:ComputeClient;expectedBudget?:string}) {
   const [quote,setQuote]=useState<AudioQuote>();
   const [target,setTarget]=useState<AudioTarget>();
   const [job,setJob]=useState<Job>();
+  const funding=useQuoteFunding(api,session,job?undefined:quote);
   const [message,setMessage]=useState('');
   const [busy,setBusy]=useState(false);
   const [recovered,setRecovered]=useState(false);
@@ -47,6 +49,7 @@ export default function AudioOrder({session,receipt,api,expectedBudget}:{session
     });
   }
   function order(q:AudioQuote){
+    if(funding.isFetching||funding.error||funding.data?.status!=='sufficient'||funding.data.quote_id!==q.quote_id)return;
     void perform(async signal=>{
       const existing=await api.lookup(session,invocation,signal);
       if(existing){if(expectedBudget && existing.job.root_budget_id!==expectedBudget)throw Error('TEAM_BUDGET_MISMATCH');if(!signal.aborted)setJob(existing.job);return;}
@@ -63,13 +66,13 @@ export default function AudioOrder({session,receipt,api,expectedBudget}:{session
       <>
         <Button disabled={busy||!recovered} onClick={prepare}>获取转写报价</Button>
         {quote&&target&&<>
-          <dl><dt>执行节点与地区</dt><dd>{target.node_id} · {target.region_id}</dd>
+          <FundingDetails query={funding}/><dl><dt>模型版本</dt><dd>{target.model_version}</dd><dt>执行节点与地区</dt><dd>{target.node_id} · {target.region_id}</dd>
             <dt>预算</dt><dd>{quote.root_budget_id}</dd>
             <dt>计量时长</dt><dd>{quote.duration_ms} 毫秒</dd>
             <dt>每分钟费率</dt><dd>{quote.price_per_minute} 个开发积分最小单位</dd>
             <dt>本次最多预留</dt><dd>{quote.max_amount} 个开发积分最小单位</dd>
             <dt>报价截止</dt><dd>{new Date(Number(quote.expires_at_unix)*1000).toLocaleTimeString()}</dd></dl>
-          <Button disabled={busy||BigInt(quote.expires_at_unix)*1000n<=BigInt(now)} onClick={()=>order(quote)}>确认预留并提交转写</Button>
+          <Button disabled={busy||funding.isFetching||!!funding.error||funding.data?.status!=='sufficient'||BigInt(quote.expires_at_unix)*1000n<=BigInt(now)} onClick={()=>order(quote)}>确认预留并提交转写</Button>
         </>}
       </>}
     {message&&<Alert type="warning" title={message}/>}

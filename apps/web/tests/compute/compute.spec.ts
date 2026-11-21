@@ -25,6 +25,12 @@ async function fixture(page:Page,options:{loss?:'after'|'before';running?:boolea
   if(path.includes('/uploads/')&&path.endsWith('/content')&&method==='PUT'){
    const bytes=request.postDataBuffer()!;expect(digest(bytes)).toBe(state.upload!.sha256);expect(bytes.length.toString()).toBe(state.upload!.size_bytes);state.request=JSON.parse(bytes.toString());expect(state.request!.tools).toEqual([]);state.input!.state='available';return send(state.input);
   }
+  if(path.endsWith('/quotes/quote-fixture/funding')&&method==='GET'&&state.quote){
+   const q=state.quote,amount=options.balance??'1000';
+   return send({quote_id:q.quote_id,requester_id:session.user_id,owner_id:session.personal_owner_id,root_budget_id:q.root_budget_id,account_kind:'personal',price_version:q.price_version,
+     max_microcredits:q.max_amount,budget_limit:'1000',budget_spent:'0',budget_reserved:'0',budget_remaining:'1000',wallet_available:amount,
+     status:BigInt(amount)<BigInt(q.max_amount)?'insufficient_funds':'sufficient',observed_unix:Math.floor(Date.now()/1000).toString(),expires_unix:q.expires_at_unix});
+  }
   if(path.endsWith('/text-quotes')&&method==='POST'){
    const body=request.postDataJSON();expect(body.input_upload_id).toBe(state.upload!.upload_id);expect(body.input_version_id).toBe(state.input!.version_id);state.quoteKeys.push(request.headers()['idempotency-key']);
    state.quote??={quote_id:'quote-fixture',root_budget_id:'budget-fixture',invocation_id:state.request!.invocation_id,price_version:price.price_version,request_projection_digest:'a'.repeat(64),meter_profile_digest:price.meter_profile_digest,input_units:'10',output_limit:'32',max_amount:'100',expires_at_unix:'4102444800'};return send(state.quote,201);

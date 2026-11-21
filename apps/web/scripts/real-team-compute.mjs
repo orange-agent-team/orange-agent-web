@@ -30,6 +30,8 @@ try{
  await page.getByLabel('转写语言').selectOption('en');await page.getByRole('checkbox',{name:'允许此节点读取当前音频版本用于本次转写'}).check();
  await page.getByRole('button',{name:'授权 15 分钟'}).click();await page.getByText(/^授权有效/).waitFor();
  await page.getByRole('button',{name:'获取转写报价'}).click();await page.getByText('2200 个开发积分最小单位',{exact:true}).waitFor();
+ const funding=page.getByRole('region',{name:'原报价资金核对'});await funding.getByText('该预算可用额度',{exact:true}).waitFor();
+ if(!(await funding.innerText()).includes(f.org)||await funding.getByText('账户可用余额',{exact:true}).count())throw Error('Wrong team funding scope or leaked team wallet');
  await page.getByRole('button',{name:'确认预留并提交转写'}).click();
  await page.getByRole('link',{name:'查看任务',exact:true}).click();await page.getByRole('heading',{name:'我的团队任务'}).waitFor();
  const content=page.getByTestId('model-result-text');await content.waitFor({timeout:45000});

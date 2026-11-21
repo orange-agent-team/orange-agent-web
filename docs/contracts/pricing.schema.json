@@ -198,6 +198,114 @@
           "type": "string"
         }
       }
+    },
+    "QuoteFundingView": {
+      "type": "object",
+      "properties": {
+        "quote_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "requester_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "root_budget_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "price_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "max_microcredits": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "budget_limit": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "budget_spent": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "budget_reserved": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "budget_remaining": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "observed_unix": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "expires_unix": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,19})$"
+        },
+        "account_kind": {
+          "enum": [
+            "personal",
+            "team"
+          ]
+        },
+        "wallet_available": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,19})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "sufficient",
+            "expired",
+            "budget_closed",
+            "spending_paused",
+            "insufficient_budget",
+            "insufficient_funds"
+          ]
+        }
+      },
+      "required": [
+        "quote_id",
+        "requester_id",
+        "owner_id",
+        "root_budget_id",
+        "price_version",
+        "max_microcredits",
+        "budget_limit",
+        "budget_spent",
+        "budget_reserved",
+        "budget_remaining",
+        "observed_unix",
+        "expires_unix",
+        "account_kind",
+        "wallet_available",
+        "status"
+      ],
+      "additionalProperties": false
     }
   }
 }

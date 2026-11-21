@@ -9,6 +9,18 @@ const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audi
 export class ComputeClient extends UserClient {
  constructor(fetcher?:typeof fetch,private readonly selectedOwner?:string){super(fetcher);if(selectedOwner!==undefined)pathId(selectedOwner);}
  owner(session:UserSession){return this.selectedOwner??session.personal_owner_id;}
+ async funding(session:UserSession,quote:{quote_id:string;root_budget_id:string;price_version:string;max_amount:string;expires_at_unix:string},signal?:AbortSignal){
+  const value=decodeCompute('Funding',await this.call(this.base(session)+'/quotes/'+pathId(quote.quote_id)+'/funding',{signal}));
+  const personal=this.owner(session)===session.personal_owner_id;
+  if(value.requester_id!==session.user_id||value.owner_id!==this.owner(session)||value.account_kind!==(personal?'personal':'team')||
+     value.quote_id!==quote.quote_id||value.root_budget_id!==quote.root_budget_id||value.price_version!==quote.price_version||
+     value.max_microcredits!==quote.max_amount||value.expires_unix!==quote.expires_at_unix||(personal&&value.wallet_available===null))
+    throw new ApiFailure(403,'QUOTE_FUNDING_SCOPE_MISMATCH');
+  const max=BigInt(value.max_microcredits);
+  if(BigInt(value.budget_spent)+BigInt(value.budget_reserved)+BigInt(value.budget_remaining)!==BigInt(value.budget_limit)||
+     (value.status==='sufficient'&&(max>BigInt(value.budget_remaining)||(value.wallet_available!==null&&max>BigInt(value.wallet_available)))))throw Error('INVALID_QUOTE_FUNDING');
+  return value;
+ }
  private base(session:UserSession){return '/api/v1/owners/'+pathId(this.owner(session));}
 
  protected override rejection(status:number,body:unknown){return isArtifactError(body)?new ApiFailure(status,body.code,body.request_id):super.rejection(status,body);}

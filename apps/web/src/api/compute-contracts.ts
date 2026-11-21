@@ -30,6 +30,12 @@ export interface TranscriptionResult {
 export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain'|AudioMedia }
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
 export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
+export interface QuoteFunding {
+ quote_id:string;requester_id:string;owner_id:string;root_budget_id:string;account_kind:'personal'|'team';price_version:string;
+ max_microcredits:string;budget_limit:string;budget_spent:string;budget_reserved:string;budget_remaining:string;
+ wallet_available:string|null;status:'sufficient'|'expired'|'budget_closed'|'spending_paused'|'insufficient_budget'|'insufficient_funds';
+ observed_unix:string;expires_unix:string;
+}
 export interface Quote { quote_id: string; root_budget_id: string; invocation_id: string; price_version: string; request_projection_digest: string; meter_profile_digest: string; input_units: string; output_limit: string; max_amount: string; expires_at_unix: string }
 export interface Submission { root_budget_id: string; invocation_id: string; purpose: 'primary' | 'summary' | 'memory' | 'title' | 'continuation' | 'transcription'; quote_id: string; request_projection_digest: string }
 export interface Job { job_id: string; root_budget_id: string; invocation_id: string; execution_state: 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled'; settlement_state: 'pending' | 'settled' | 'reversed'; reserved: string; charge: string | null }
@@ -42,6 +48,7 @@ const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSch
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
 export const isArtifactError=compile<{code:string;message:string;request_id:string;retry_class:string}>(artifacts,'ApiError');
 const validators = {
+ Funding: compile<QuoteFunding>(pricing,'QuoteFundingView'),
  AudioPrice: compile<AudioPrice>(artifacts,'TranscriptionPrice'),
  AudioQuote: compile<AudioQuote>(artifacts,'TranscriptionQuoteView'),
  AudioSubmission: compile<Submission>(artifacts,'SubmitTranscriptionJob'),
@@ -55,7 +62,7 @@ const validators = {
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+type Values = { Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['price_per_minute', 'input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');
