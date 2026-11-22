@@ -8,11 +8,23 @@ export interface ComputeIntent {
 }
 export type IntentStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 const allowed = new Set(['version','user','owner','invocation','budget','price','output','upload','quote_key','submit_key','confirmed','bound','withdrawn','artifact','quote','job']);
-export const computeIntentKey = (session: UserSession) => `orange-compute-v1:${JSON.stringify([session.user_id,session.personal_owner_id])}`;
-export function checkIntent(value: unknown, session: UserSession): ComputeIntent {
+/** The route supplies the allocation after checking the current organization membership.
+ * HTTP authentication always retains the user's real personal owner and session identity. */
+export type ComputeSession = UserSession & {
+ readonly allocation?: Readonly<{owner: string; budget: string}>;
+};
+function payer(session: ComputeSession): string {
+ return session.allocation?.owner ?? session.personal_owner_id;
+}
+export function computeIntentKey(session: ComputeSession): string {
+ const ids = [session.user_id, payer(session)];
+ if (session.allocation) ids.push(session.allocation.budget);
+ return `orange-compute-v1:${JSON.stringify(ids)}`;
+}
+export function checkIntent(value: unknown, session: ComputeSession): ComputeIntent {
  if (value === null || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !allowed.has(key))) throw new Error('INVALID_COMPUTE_INTENT');
  const intent = value as ComputeIntent;
- if (intent.version !== 1 || intent.user !== session.user_id || intent.owner !== session.personal_owner_id || typeof intent.confirmed !== 'boolean' || typeof intent.bound !== 'boolean' || typeof intent.withdrawn !== 'boolean') throw new Error('INVALID_COMPUTE_INTENT');
+ if (intent.version !== 1 || intent.user !== session.user_id || intent.owner !== payer(session) || (session.allocation && intent.budget !== session.allocation.budget) || typeof intent.confirmed !== 'boolean' || typeof intent.bound !== 'boolean' || typeof intent.withdrawn !== 'boolean') throw new Error('INVALID_COMPUTE_INTENT');
  for (const id of [intent.invocation,intent.budget,intent.quote_key,intent.submit_key]) { if (typeof id !== 'string') throw new Error('INVALID_COMPUTE_INTENT'); pathId(id); }
  decodeCompute('Price',intent.price); decodeCompute('Upload',intent.upload);
  if (intent.upload.media_type !== 'application/json' || BigInt(intent.upload.size_bytes) < 1n || BigInt(intent.upload.size_bytes) > 262144n || !Number.isInteger(intent.output) || intent.output < 1 || BigInt(intent.output) > BigInt(intent.price.output_limit)) throw new Error('INVALID_COMPUTE_INTENT');
@@ -36,11 +48,11 @@ const identity = (i: ComputeIntent) => JSON.stringify([i.user,i.owner,i.invocati
  i.price.price_version,i.price.model_version,i.price.node_id,i.price.meter_profile_digest,i.price.input_price,i.price.output_price,i.price.output_limit,i.price.fee_bps,
  i.upload.upload_id,i.upload.sha256,i.upload.size_bytes,i.upload.media_type]);
 const quoteIdentity = (q: Quote | undefined) => q && JSON.stringify([q.quote_id,q.root_budget_id,q.invocation_id,q.price_version,q.request_projection_digest,q.meter_profile_digest,q.input_units,q.output_limit,q.max_amount,q.expires_at_unix]);
-export function loadComputeIntent(storage: IntentStorage, session: UserSession): ComputeIntent | null {
+export function loadComputeIntent(storage: IntentStorage, session: ComputeSession): ComputeIntent | null {
  const raw = storage.getItem(computeIntentKey(session)); if (raw === null) return null;
  if (raw.length > 32768) throw new Error('INTENT_TOO_LARGE'); return checkIntent(JSON.parse(raw),session);
 }
-export function saveComputeIntent(storage: IntentStorage, session: UserSession, value: ComputeIntent, initialize=false): ComputeIntent {
+export function saveComputeIntent(storage: IntentStorage, session: ComputeSession, value: ComputeIntent, initialize=false): ComputeIntent {
  checkIntent(value,session); const previous=loadComputeIntent(storage,session);
  if (!previous && (!initialize || value.confirmed || value.bound || value.withdrawn || value.job || value.quote || value.artifact)) throw new Error('INTENT_NO_LONGER_CURRENT');
  if (previous) {
@@ -52,9 +64,9 @@ export function saveComputeIntent(storage: IntentStorage, session: UserSession, 
  const raw = JSON.stringify(value); if (raw.length > 32768) throw new Error('INTENT_TOO_LARGE');
  storage.setItem(computeIntentKey(session),raw); return checkIntent(JSON.parse(raw),session);
 }
-export async function newComputeIntent(session: UserSession, budget: string, price: Price, prompt: string, output: number): Promise<{ intent: ComputeIntent; bytes: Uint8Array }> {
+export async function newComputeIntent(session: ComputeSession, budget: string, price: Price, prompt: string, output: number): Promise<{ intent: ComputeIntent; bytes: Uint8Array }> {
  const invocation = crypto.randomUUID(), bytes = modelInput(invocation,price.model_version,prompt,output);
- const intent: ComputeIntent = { version: 1, user: session.user_id, owner: session.personal_owner_id, invocation, budget, price, output,
+ const intent: ComputeIntent = { version: 1, user: session.user_id, owner: payer(session), invocation, budget, price, output,
   upload: { upload_id: crypto.randomUUID(), sha256: await sha256(bytes), size_bytes: bytes.length.toString(), media_type: 'application/json' },
   quote_key: crypto.randomUUID(), submit_key: crypto.randomUUID(), confirmed: false, bound: false, withdrawn: false };
  return { intent: checkIntent(intent,session), bytes };
@@ -65,7 +77,8 @@ const verified = new WeakMap<VerifiedComputeQuote,{ identity: string; quote: str
 const approvals = new WeakMap<SubmissionApproval,{ identity: string; quote: string; session: string }>();
 /** Only a freshly observed server quote can produce an in-memory click permit.
  * This UI gate does not replace server identity, expiry or budget authorization. */
-export function confirmComputeIntent(session: UserSession, prepared: VerifiedComputeQuote): SubmissionApproval {
+export function confirmComputeIntent(session: ComputeSession, prepared: VerifiedComputeQuote): SubmissionApproval {
+ checkIntent(prepared.intent,session);
  const proof=verified.get(prepared);
  if (!proof || proof.session!==session.session_id || proof.identity!==identity(prepared.intent) || proof.quote!==quoteIdentity(prepared.intent.quote)) throw new Error('QUOTE_REQUIRES_CURRENT_VERIFICATION');
  const approval:SubmissionApproval=Object.freeze({ kind:'original-quote-approval' });approvals.set(approval,proof);verified.delete(prepared);return approval;
@@ -74,7 +87,8 @@ export class OriginalInputRequired extends Error {}
 export type ComputeProgress = { kind:'quoted'; intent:ComputeIntent; prepared:VerifiedComputeQuote } | { kind:'job'; intent:ComputeIntent };
 /** Read-only lookup precedes any reconciliation. A stored confirmed bit alone
  * never authorizes a new submission. Unknown writes keep their original IDs. */
-export async function advanceComputeIntent(api: ComputeClient, storage: IntentStorage, session: UserSession, original: ComputeIntent, bytes?: Uint8Array, approval?: SubmissionApproval): Promise<ComputeProgress> {
+export async function advanceComputeIntent(api: ComputeClient, storage: IntentStorage, session: ComputeSession, original: ComputeIntent, bytes?: Uint8Array, approval?: SubmissionApproval): Promise<ComputeProgress> {
+ if (api.owner(session)!==payer(session)) throw new Error('COMPUTE_PAYER_MISMATCH');
  let intent=saveComputeIntent(storage,session,checkIntent(JSON.parse(JSON.stringify(original)),session),true);
  if(intent.withdrawn)throw new Error('ORIGINAL_INTENT_WITHDRAWING');
  let approved=false;
@@ -121,7 +135,7 @@ export async function advanceComputeIntent(api: ComputeClient, storage: IntentSt
  }
  return { kind:'job', intent };
 }
-export function clearFinishedCreation(storage: IntentStorage, session: UserSession, value: ComputeIntent): void {
+export function clearFinishedCreation(storage: IntentStorage, session: ComputeSession, value: ComputeIntent): void {
  checkIntent(value,session);const current=loadComputeIntent(storage,session);if (!current) return;
  if (identity(value)!==identity(current) || !current.job || (!current.bound && current.job.execution_state==='queued')) throw new Error('UNRESOLVED_CREATION');
  storage.removeItem(computeIntentKey(session));
@@ -129,7 +143,8 @@ export function clearFinishedCreation(storage: IntentStorage, session: UserSessi
 
 /** Withdraw never starts an original task. Only the current server's immutable
  * prevention receipt can close a not-yet-visible submission. */
-export async function withdrawComputeIntent(api:ComputeClient,storage:IntentStorage,session:UserSession,original:ComputeIntent):Promise<ComputeIntent|null>{
+export async function withdrawComputeIntent(api:ComputeClient,storage:IntentStorage,session:ComputeSession,original:ComputeIntent):Promise<ComputeIntent|null>{
+ if (api.owner(session)!==payer(session)) throw new Error('COMPUTE_PAYER_MISMATCH');
  const saved=loadComputeIntent(storage,session);if(!saved||identity(saved)!==identity(checkIntent(original,session)))throw new Error('INTENT_NO_LONGER_CURRENT');
  const intent=saveComputeIntent(storage,session,{...saved,withdrawn:true});
  let prevented=false;

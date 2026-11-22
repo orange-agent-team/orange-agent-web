@@ -79,3 +79,27 @@ describe('recoverable model-task intent with explicit in-memory approval',()=>{
   const serialized=JSON.parse(JSON.stringify(ready.intent)) as ComputeIntent & {prompt?:string};serialized.prompt='must not be stored';expect(()=>saveComputeIntent(f.storage,session,serialized)).toThrow('INVALID_COMPUTE_INTENT');
  });
 });
+
+describe('team compute recovery scope',()=>{
+ it('preserves legacy personal keys and isolates organization, member and allocation before any write',async()=>{
+  const {storage,api,lookup,records}=await fixture();
+  const team={...session,allocation:{owner:'team-1',budget:'allocated-1'}};
+  const otherBudget={...team,allocation:{owner:'team-1',budget:'allocated-2'}};
+  const otherMember={...team,user_id:'someone-else'};
+  const own=await newComputeIntent(session,'budget',price,'personal prompt',32);
+  const shared=await newComputeIntent(team,'allocated-1',price,'team prompt',32);
+  saveComputeIntent(storage,session,own.intent,true);
+  saveComputeIntent(storage,team,shared.intent,true);
+  expect(records.has('orange-compute-v1:["user","owner"]')).toBe(true);
+  expect(loadComputeIntent(storage,session)?.owner).toBe('owner');
+  expect(loadComputeIntent(storage,team)?.owner).toBe('team-1');
+  expect(loadComputeIntent(storage,otherBudget)).toBeNull();
+  expect(loadComputeIntent(storage,otherMember)).toBeNull();
+  expect(()=>saveComputeIntent(storage,otherBudget,shared.intent,true)).toThrow();
+  expect(()=>saveComputeIntent(storage,session,shared.intent,true)).toThrow();
+  await expect(advanceComputeIntent(api,storage,team,shared.intent,shared.bytes)).rejects.toThrow('COMPUTE_PAYER_MISMATCH');
+  await expect(withdrawComputeIntent(api,storage,team,shared.intent)).rejects.toThrow('COMPUTE_PAYER_MISMATCH');
+  expect(lookup).not.toHaveBeenCalled();
+  expect(JSON.stringify([...records.values()])).not.toContain('team prompt');
+ });
+});

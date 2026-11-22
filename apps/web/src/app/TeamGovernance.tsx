@@ -98,7 +98,7 @@ function Team({org,session}:{org:string;session:UserSession}){
        <Button disabled={w.disabled||!beneficiary||!amount(limit)} onClick={()=>{const id=crypto.randomUUID();void w.submit({op:'allocate',org,key:id,body:{budget_id:id,member_id:beneficiary,limit,expected_policy_version:protectedPolicy.version}});}}>分配团队额度</Button></>}
      {budgets.error?<p>当前无法读取成员预算。</p>:budgets.data?.data.map(b=><div key={b.root_budget_id}><p>预算 <Typography.Text copyable>{b.root_budget_id}</Typography.Text></p>
        <p>额度 {b.limit} · 已消费 {b.spent} · 已冻结 {b.reserved} 微积分 · {b.allow_submit?'允许提交':'授权已关闭'}</p>
-       {b.allow_submit&&b.member_id===session.user_id&&b.state==='active'&&<p><Link to={'/organizations/'+encodeURIComponent(org)+'/budgets/'+encodeURIComponent(b.root_budget_id)+'/audio'}>使用这笔团队预算转写</Link></p>}
+       {b.allow_submit&&b.member_id===session.user_id&&b.state==='active'&&<p><Link to={'/organizations/'+encodeURIComponent(org)+'/budgets/'+encodeURIComponent(b.root_budget_id)+'/audio'}>使用这笔团队预算转写</Link> · <Link to={'/organizations/'+encodeURIComponent(org)+'/budgets/'+encodeURIComponent(b.root_budget_id)+'/text'}>使用这笔团队预算运行文本任务</Link></p>}
        {managed&&<BudgetEdit key={b.root_budget_id+':'+b.version} b={b} submit={w.submit} disabled={w.disabled}/>}</div>)}
      <Pages pages={bp} set={setBp} next={budgets.data?.next_cursor}/></Card>}
   </>;

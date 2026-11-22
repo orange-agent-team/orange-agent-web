@@ -53,9 +53,20 @@ try{
  await member.getByText(budget.root_budget_id,{exact:true}).waitFor();
  if(await member.getByRole('button',{name:'保存团队硬预算'}).count()||await member.getByLabel('被邀请人的成员标识').count())throw Error('Member sees governance actions');
  await member.screenshot({path:f.screenshot,fullPage:true});
+ await member.getByRole('link',{name:'使用这笔团队预算运行文本任务'}).click();
+ await member.getByRole('heading',{name:'团队文本任务',exact:true}).waitFor();
+ if(await member.getByRole('combobox',{name:'团队预算'}).inputValue()!==budget.root_budget_id)throw Error('Different team budget selected');
+ let uploadWrites=0;
+ member.on('request',request=>{
+    if(['PUT','POST'].includes(request.method())&&new URL(request.url()).pathname.startsWith('/api/v1/owners/'))uploadWrites++;
+ });
+ await member.getByRole('textbox',{name:'任务文本',exact:true}).fill('private unsent membership fixture');
  await owner.getByText('变更已有成员',{exact:true}).click();await owner.getByLabel('目标成员').selectOption(f.recipient);await owner.getByLabel('新的成员权限').selectOption('remove');
- await submit(owner,'确认成员变更',base+'/members');await member.reload();
+ await submit(owner,'确认成员变更',base+'/members');
+ await member.getByText('当前团队预算未授权这项任务',{exact:true}).waitFor();
+ if(uploadWrites!==0 || await member.getByRole('textbox',{name:'任务文本',exact:true}).count())throw Error('Revoked route retained a draft or uploaded input');
+ await member.reload();
  await member.waitForFunction(id=>!document.body.innerText.includes(id),budget.root_budget_id);
  const denied=await member.request.get(base+'/budgets');if(denied.status()!==403)throw Error('Removed member retained budget access');
- console.log(JSON.stringify({two_user_contexts:true,one_invitation_after_lost_response:true,original_invitation_posts:posts,explicit_accept:true,team_hard_limit:'700',member_allocation:'500',removed_member_denied:true}));
+ console.log(JSON.stringify({two_user_contexts:true,one_invitation_after_lost_response:true,original_invitation_posts:posts,explicit_accept:true,team_hard_limit:'700',member_allocation:'500',removed_member_denied:true,revoked_open_text_form:true,unsent_input_writes:uploadWrites}));
 }finally{await browser?.close();await server.close();}

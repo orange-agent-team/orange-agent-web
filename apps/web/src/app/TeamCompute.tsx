@@ -9,18 +9,19 @@ import type {UserSession} from '../api/contracts';
 import {formatCredits} from '../api/accounts';
 import AudioPreflight from './AudioPreflight';
 import TaskDocument from './TaskDocument';
+import ModelTasks from './ModelTasks';
 const teams=new TeamClient();
 const execution={queued:'排队中',running:'执行中',cancelling:'取消中',succeeded:'已完成',failed:'失败',cancelled:'已取消'};
 
-export function TeamAudio({session,invalidate}:{session:UserSession;invalidate:()=>void}){
+export function TeamBudgetTask({session,invalidate,kind}:{session:UserSession;invalidate:()=>void;kind:'audio'|'text'}){
   const {org='',budget=''}=useParams();
   const member=useQuery({queryKey:['team',session.session_id,org],queryFn:({signal})=>teams.organization(session,org,signal),refetchInterval:5000,retry:false});
   const active=member.isSuccess&&['admin','owner','member'].includes(member.data.role);
-  const allocation=useQuery({queryKey:['team-audio-budget',session.session_id,org,budget],enabled:active,queryFn:({signal})=>teams.budget(org,budget,signal),refetchInterval:5000,retry:false});
+  const allocation=useQuery({queryKey:['team-model-budget',session.session_id,org,budget],enabled:active,queryFn:({signal})=>teams.budget(org,budget,signal),refetchInterval:5000,retry:false});
   if(member.isPending||active&&allocation.isPending)return <Spin/>;
   if(!active||!allocation.isSuccess||allocation.data.member_id!==session.user_id||!allocation.data.allow_submit||allocation.data.state!=='active')return <Alert title="当前团队预算未授权这项任务" type="warning"/>;
   return <><p><Link to={'/organizations/'+pathId(org)}>{member.data!.name}</Link> · 使用团队预算 <code>{budget}</code></p>
-    <AudioPreflight key={JSON.stringify([session.session_id,org,budget])} session={session} invalidate={invalidate} ownerId={org} budgetId={budget}/></>;
+    {kind==='text' ? <ModelTasks key={JSON.stringify([session.session_id,org,budget,'text'])} session={session} invalidate={invalidate} teamBudget={allocation.data}/> : <AudioPreflight key={JSON.stringify([session.session_id,org,budget])} session={session} invalidate={invalidate} ownerId={org} budgetId={budget}/>}</>;
 }
 
 export function TeamJobs({session}:{session:UserSession}){

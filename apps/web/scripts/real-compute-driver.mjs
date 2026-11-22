@@ -14,6 +14,10 @@ if(api.protocol!=='http:'||api.hostname!=='127.0.0.1'||api.username||api.passwor
 if(typeof f.cookie!=='string'||!f.cookie.startsWith('__Host-orange-user='))throw Error('Explicit user-session fixture required');
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dist=realpathSync(resolve(app,'dist'));
 const tls=resolve(app,'../../.local/tls'),output=resolve(dirname(file),'browser-result.json');
+const payer=f.team?.owner??f.owner;
+const taskRoute=f.team?'/organizations/'+encodeURIComponent(payer)+'/budgets/'+encodeURIComponent(f.team.budget)+'/text':'/tasks';
+const title=f.team?'团队文本任务':'模型任务';
+const recoveryKey='orange-compute-v1:'+JSON.stringify(f.team?[f.user,payer,f.team.budget]:[f.user,payer]);
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const write=(name,value)=>writeFileSync(resolve(dirname(file),name),value,{mode:0o600});
 let browser,page;const failedResponses=[];
@@ -38,9 +42,15 @@ try{
  await new Promise((ok,bad)=>{server.once('error',bad);server.listen(Number(origin.port),'127.0.0.1',ok);});
  browser=await chromium.launch({channel:'chrome',headless:true});const context=await browser.newContext({baseURL:origin.origin,ignoreHTTPSErrors:true,viewport:{width:1440,height:1100}});
  await context.addCookies([{name:'__Host-orange-user',value:f.cookie.slice('__Host-orange-user='.length),url:origin.origin,httpOnly:true,secure:true,sameSite:'Lax'}]);
- page=await context.newPage();page.on('response',r=>{const url=new URL(r.url());if(url.pathname.startsWith('/api/v1/')&&r.status()>=400)failedResponses.push({path:url.pathname,status:r.status()});});await page.goto('/tasks');await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
+ page=await context.newPage();page.on('response',r=>{const url=new URL(r.url());if(url.pathname.startsWith('/api/v1/')&&r.status()>=400)failedResponses.push({path:url.pathname,status:r.status()});});await page.goto(f.team?'/organizations/'+encodeURIComponent(payer):taskRoute);
+ if(f.team)await page.getByRole('link',{name:'使用这笔团队预算运行文本任务'}).click();
+ await page.getByRole('heading',{name:title,exact:true}).waitFor();
  const sessionResponse=await page.request.get('/api/v1/session');if(sessionResponse.status()!==200)throw Error('Actual user session rejected');const session=await sessionResponse.json();if(session.user_id!==f.user||session.personal_owner_id!==f.owner)throw Error('Actor mismatch');
- await page.getByRole('combobox',{name:'个人预算'}).selectOption(f.budget);await page.getByRole('combobox',{name:'可用模型'}).selectOption(f.price);
+ if(f.team){
+  const selected=page.getByRole('combobox',{name:'团队预算'});
+  if(!await selected.isDisabled()||await selected.inputValue()!==f.team.budget)throw Error('Member budget was not fixed to authorized allocation');
+ }else await page.getByRole('combobox',{name:'个人预算'}).selectOption(f.budget);
+ await page.getByRole('combobox',{name:'可用模型'}).selectOption(f.price);
  let inputWrites=0,unreviewedSecret=false,uploadedDigest;
  const sensitive='private-fixture@example.test';
  page.on('request',req=>{
@@ -58,12 +68,12 @@ try{
  if(inputWrites!==0)throw Error('Preview sent a remote mutation');
  const previewQuoteResponse=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/text-quotes'));
  await page.getByRole('button',{name:'批准上传并获取报价',exact:true}).click();const previewResponse=await previewQuoteResponse;if(previewResponse.status()!==201)throw Error('Preview quote failed');const previewQuote=await previewResponse.json();await page.getByTestId('quote-maximum').waitFor();
- const original=await page.evaluate(({user,owner})=>JSON.parse(sessionStorage.getItem('orange-compute-v1:'+JSON.stringify([user,owner]))),{user:f.user,owner:f.owner});
+ const original=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),recoveryKey);
  const withdrawalResponse=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/withdraw'));
  await page.getByRole('button',{name:'删除未提交输入',exact:true}).click();const withdrawalHttp=await withdrawalResponse;if(withdrawalHttp.status()!==200)throw Error('Pre-admission withdrawal rejected');const withdrawal=await withdrawalHttp.json();if(!withdrawal.prevented||!withdrawal.receipt_id||withdrawal.job!==null)throw Error('No authoritative prevention receipt');
  await page.getByRole('button',{name:'批准上传并获取报价',exact:true}).waitFor();
  const originalBody={root_budget_id:previewQuote.root_budget_id,invocation_id:previewQuote.invocation_id,purpose:'primary',quote_id:previewQuote.quote_id,request_projection_digest:previewQuote.request_projection_digest};
- const blocked=await page.request.post('/api/v1/owners/'+encodeURIComponent(f.owner)+'/jobs',{data:originalBody,headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':original.submit_key}});if(blocked.status()!==409||(await blocked.json()).code!=='INVOCATION_WITHDRAWN')throw Error('Late original submission crossed the barrier');
+ const blocked=await page.request.post('/api/v1/owners/'+encodeURIComponent(payer)+'/jobs',{data:originalBody,headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':original.submit_key}});if(blocked.status()!==409||(await blocked.json()).code!=='INVOCATION_WITHDRAWN')throw Error('Late original submission crossed the barrier');
  // Changing or withdrawing a preview must discard its upload authority before any second request.
  const priorWrites=inputWrites;
  await page.getByRole('textbox',{name:'任务文本',exact:true}).fill('Please greet '+sensitive);
@@ -85,11 +95,25 @@ try{
  if(sessionData.includes(sensitive)||sessionData.includes('Say a short greeting. Contact:'))throw Error('Raw input or review terms persisted');
  console.log(JSON.stringify({default_local_only:true,changed_preview_revoked:true,redacted_upload_matches_digest:true,raw_literal_sent:false}));
  await page.getByTestId('quote-maximum').waitFor();const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/jobs'));
- const funding=page.getByRole('region',{name:'原报价资金核对'});await funding.getByText('账户可用余额',{exact:true}).waitFor();
- if(!(await funding.innerText()).includes(f.owner))throw Error('Original personal owner missing from funding view');
+ const funding=page.getByRole('region',{name:'原报价资金核对'});await funding.getByText('费用归属',{exact:true}).waitFor();
+ if(f.team){
+    if(await funding.getByText('账户可用余额',{exact:true}).count())throw Error('Ordinary member saw the team wallet balance');
+    const stored=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),recoveryKey);
+    if(stored.owner!==payer||stored.budget!==f.team.budget||stored.confirmed)throw Error('Incorrect original team request');
+    await page.goto('/tasks');
+    await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
+    if(await page.getByRole('heading',{name:'原任务请求',exact:true}).count())throw Error('Personal route adopted a team request');
+    await page.goto(taskRoute);
+    await page.getByRole('button',{name:'核对原任务',exact:true}).click();
+    await funding.getByText('费用归属',{exact:true}).waitFor();
+    const reopened=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),recoveryKey);
+    if(reopened.quote.quote_id!==stored.quote.quote_id||reopened.invocation!==stored.invocation||reopened.confirmed)throw Error('Reload changed or submitted team request');
+ }else await funding.getByText('账户可用余额',{exact:true}).waitFor();
+ if(!(await funding.innerText()).includes(payer))throw Error('Wrong payer in funding view');
  await page.getByRole('button',{name:'确认并提交原请求',exact:true}).click();const response=await submitted;if(response.status()!==200)throw Error('Actual model Job not accepted');const job=await response.json();
+ if(f.team)await page.getByRole('link',{name:'查看团队任务结果'}).click();
  await page.getByTestId('model-result-text').waitFor({timeout:60000});const text=await page.getByTestId('model-result-text').innerText();if(!text.trim())throw Error('No actual model output rendered');
- const base=`/api/v1/owners/${encodeURIComponent(f.owner)}`;
+ const base=`/api/v1/owners/${encodeURIComponent(payer)}`;
  const metadataResponse=await page.request.get(`${base}/jobs/${encodeURIComponent(job.job_id)}/result`);if(metadataResponse.status()!==200)throw Error('Result metadata denied');const artifact=await metadataResponse.json();
  const content=await page.request.get(`${base}/uploads/${encodeURIComponent(artifact.upload_id)}/content?version_id=${encodeURIComponent(artifact.version_id)}`);if(content.status()!==200)throw Error('Result bytes denied');const bytes=await content.body();
  if(hash(bytes)!==artifact.sha256||bytes.length.toString()!==artifact.size_bytes||JSON.parse(bytes).text!==text)throw Error('Displayed output differs from committed bytes');
@@ -101,8 +125,8 @@ try{
  if(lateWithdrawal.status()!==200)throw Error('Late withdrawal reconciliation failed');const retained=await lateWithdrawal.json();if(retained.prevented||retained.job?.execution_state!=='succeeded'||retained.job?.charge!==settled.charge)throw Error('Late withdrawal changed committed delivery or charge');
  await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
  const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
- await page.getByRole('button',{name:'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:'模型任务',exact:true}).waitFor();
- writeFileSync(output,JSON.stringify({prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ await page.getByRole('button',{name:f.team?'刷新团队任务':'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:f.team?'我的团队任务':'模型任务',exact:true}).waitFor();
+ writeFileSync(output,JSON.stringify({team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
  console.log('PASS actual browser withdrawal barrier, late-submit refusal, upload/quote/confirmation/Job/result, retained late-withdrawal charge and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
 }catch(error){
  try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}
