@@ -22,8 +22,25 @@ try{
   await page.goto('/tasks/audio');
   await page.evaluate(x=>sessionStorage.setItem('orange.audio-consent.v1:'+x.user+':'+x.owner,x.grant),{user:f.user,owner:f.owner,grant:f.price_grant});
   await page.reload();
+  const quoted=[];
+  await page.route('**/transcription-quotes',async route=>{
+    if(route.request().method()!=='POST')return route.continue();
+    const actual=await route.fetch();const q=await actual.json();
+    if(actual.status()!==201||q.grant_id!==f.price_grant)throw Error('The real transcription quote was not committed');
+    quoted.push({request:route.request().postDataJSON(),quote:q});
+    if(quoted.length===1)return route.abort('failed');
+    await route.fulfill({response:actual});
+  });
   await page.getByRole('button',{name:'获取转写报价'}).click();
+  await page.getByText('请求结果待核对。刷新页面可查询原任务。',{exact:true}).waitFor();
+  await page.reload();
+  await page.getByRole('button',{name:'核对原转写报价'}).waitFor();
+  if(quoted.length!==1)throw Error('Reload wrote another quote before user reconciliation');
+  await page.getByRole('button',{name:'核对原转写报价'}).click();
+
   for(const text of ['11000 毫秒','12000 个开发积分最小单位','2200 个开发积分最小单位',f.node+' · '+f.region,f.budget])await page.getByText(text,{exact:true}).waitFor();
+  if(quoted.length!==2||JSON.stringify(quoted[0])!==JSON.stringify(quoted[1]))throw Error('Lost reply changed the original quote identity or price');
+  console.log(JSON.stringify({transcription_quote_recovered:true,original_request:quoted[0].request.request_id,original_quote:quoted[0].quote.quote_id,quote_requests:2,mutations_on_reload:0}));
   let submitted=0,job;
   await page.route('**/jobs',async route=>{
     if(route.request().method()!=='POST')return route.continue();

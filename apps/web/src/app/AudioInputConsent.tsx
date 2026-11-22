@@ -6,6 +6,7 @@ import { ApiFailure } from '../api/client';
 import { pathId, type AudioGrantReceipt, type AudioMeasurement, type AudioTarget } from '../api/compute-contracts';
 
 import AudioOrder from './AudioOrder';
+import {audioQuoteScope,forgetEndedAudioAttempt} from '../api/audio-quote-intent';
 
 
 type Props = {api:ComputeClient; initialBudget?:string;session:UserSession;upload:string;measurement?:AudioMeasurement};
@@ -78,7 +79,8 @@ export default function AudioInputConsent({session,upload,measurement,api,initia
       {state==='active' && receipt?.grant_id===grant &&
         <AudioOrder api={api} expectedBudget={initialBudget} key={grant} receipt={receipt} session={session}/>}
       {state==='expired'||state==='revoked'?
-        <Button disabled={busy} onClick={()=>{try{sessionStorage.removeItem(key);setGrant('');setState('unknown');setApproved('');setError('');}catch{setError('无法清除本机恢复记录。');}}}>完成</Button>:
+        <Button disabled={busy} onClick={()=>{try{if(receipt?.grant_id===grant){const ended={...receipt,state};forgetEndedAudioAttempt(sessionStorage,audioQuoteScope(session,api.owner(session),receipt,initialBudget),ended);}
+          sessionStorage.removeItem(key);setReceipt(undefined);setGrant('');setState('unknown');setApproved('');setError('');}catch{setError('无法清除本机恢复记录。');}}}>完成</Button>:
         <Button disabled={busy} onClick={()=>void perform(async signal=>{await api.withdrawAudio(session,grant,signal);if(!signal.aborted){setState('revoked');setExpires('');}})}>撤回音频授权</Button>}
     </> : <>
       <p>允许一个已审核的节点在有效任务租约内读取这份音频。授权有效期为 15 分钟，创建授权不产生费用。</p>
