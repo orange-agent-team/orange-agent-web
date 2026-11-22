@@ -83,7 +83,7 @@ export default function AudioInputConsent({session,upload,measurement,api,initia
           sessionStorage.removeItem(key);setReceipt(undefined);setGrant('');setState('unknown');setApproved('');setError('');}catch{setError('无法清除本机恢复记录。');}}}>完成</Button>:
         <Button disabled={busy} onClick={()=>void perform(async signal=>{await api.withdrawAudio(session,grant,signal);if(!signal.aborted){setState('revoked');setExpires('');}})}>撤回音频授权</Button>}
     </> : <>
-      <p>允许一个已审核的节点在有效任务租约内读取这份音频。授权有效期为 15 分钟，创建授权不产生费用。</p>
+      <p>允许一个已审核的节点在有效任务租约内读取这份原始音频。授权有效期为 15 分钟，创建授权不产生费用。</p>
       <label>节点观测编号<Input value={observation} disabled={busy} onChange={e=>{setObservation(e.target.value);setTarget(undefined);setApproved('');}}/></label>
       <Button disabled={busy||!observation} onClick={()=>void perform(async signal=>{setTarget(undefined);setApproved('');const t=await api.audioTarget(observation,signal);if(!signal.aborted)setTarget(t);})}>核对转写节点</Button>
       {target&&<>
@@ -91,7 +91,7 @@ export default function AudioInputConsent({session,upload,measurement,api,initia
         <label>预算编号<Input value={budget} disabled={busy||!!initialBudget} onChange={e=>{setBudget(e.target.value);setApproved('');}}/></label>
         <p><label>转写语言 <select value={language} disabled={busy} onChange={e=>{setLanguage(e.target.value);setApproved('');}}>
           <option value="">自动检测</option><option value="zh">中文</option><option value="en">英语</option></select></label></p>
-        {measurement&&<p>获准的节点可在授权期内读取原音频版本 <code>{measurement.version_id}</code>。文字遮盖规则仅适用于文本任务。</p>}
+        {measurement&&<p>获准的节点可在授权期内读取原音频版本 <code>{measurement.version_id}</code>。节点可读取该版本的原始声音。文字遮盖规则仅适用于文本任务。</p>}
         <p><label><input type="checkbox" checked={approved===consentScope} disabled={busy||!measurement||!budget} onChange={e=>setApproved(e.target.checked?consentScope:'')}/>允许此节点读取当前音频版本用于本次转写</label></p>
         <Button type="primary" disabled={busy||!initialized||!measurement||!budget||approved!==consentScope} onClick={submit}>授权 15 分钟</Button>
       </>}

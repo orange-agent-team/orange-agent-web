@@ -85,6 +85,9 @@ try{
  if(!await page.getByRole('button',{name:'批准上传并获取报价'}).isDisabled())throw Error('Text edit retained old approval');
  await page.getByRole('button',{name:'在本机生成上传预览'}).click();
  const area=page.getByRole('region',{name:'上传内容预览'});await area.waitFor();
+ const disclosure=await page.locator('main').innerText();
+ if(!disclosure.includes('本次最高预留为 0')||!disclosure.includes('可读取这些明文')||!disclosure.includes('遮盖后仍可能保留可识别信息'))throw Error('Missing disclosures before real transfer');
+ if(!(await area.innerText()).includes(payer)||!(await area.innerText()).includes('执行节点'))throw Error('Missing original destination or payer before transfer');
  const exact=await area.locator('pre').innerText(), expectedHash=await area.locator('code').innerText();
  if(exact.includes(sensitive)||!exact.includes('[已遮盖]')||createHash('sha256').update(exact).digest('hex')!==expectedHash||inputWrites!==priorWrites)throw Error('Incorrect scoped preview');
 
@@ -109,6 +112,9 @@ try{
     const reopened=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),recoveryKey);
     if(reopened.quote.quote_id!==stored.quote.quote_id||reopened.invocation!==stored.invocation||reopened.confirmed)throw Error('Reload changed or submitted team request');
  }else await funding.getByText('账户可用余额',{exact:true}).waitFor();
+ const actualDeadline=await page.locator('.quote-card time').getAttribute('datetime');
+ if(!actualDeadline || Date.parse(actualDeadline)<=Date.now() || !await page.locator('.quote-card').getByText(/价格版本/).count())throw Error('Quote deadline or price version unavailable before submission');
+ console.log(JSON.stringify({disclosedBeforeUpload:true,plainTextRiskVisible:true,dataTransferHold:'0',payerAndNodeShown:true,originalQuoteDeadlineVisible:true}));
  if(!(await funding.innerText()).includes(payer))throw Error('Wrong payer in funding view');
  await page.getByRole('button',{name:'确认并提交原请求',exact:true}).click();const response=await submitted;if(response.status()!==200)throw Error('Actual model Job not accepted');const job=await response.json();
  if(f.team)await page.getByRole('link',{name:'查看团队任务结果'}).click();
@@ -126,7 +132,7 @@ try{
  await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
  const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
  await page.getByRole('button',{name:f.team?'刷新团队任务':'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:f.team?'我的团队任务':'模型任务',exact:true}).waitFor();
- writeFileSync(output,JSON.stringify({team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ writeFileSync(output,JSON.stringify({disclosed_before_upload:true,plaintext_warning_visible:true,upload_maximum_microcredits:"0",payer_and_node_shown:true,original_quote_deadline_visible:true,team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
  console.log('PASS actual browser withdrawal barrier, late-submit refusal, upload/quote/confirmation/Job/result, retained late-withdrawal charge and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
 }catch(error){
  try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}

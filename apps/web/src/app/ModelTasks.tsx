@@ -72,7 +72,10 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const count = /^[1-9][0-9]{0,3}$/.test(output) ? Number(output) : 0;
   const canPrepare = Boolean(offer && activeBudgets.some(row => row.root_budget_id === budget) && prompt.trim() && count > 0 && count <= Number(offer.output_limit));
   const funding=useQuoteFunding(api,session,prepared?.intent.quote);
-  const affordable = !funding.error && !funding.isFetching && funding.data?.status==='sufficient'
+  const expiryMillis=prepared?.intent.quote?Number(prepared.intent.quote.expires_at_unix)*1000:NaN;
+  const expiry=new Date(expiryMillis);
+  const hasExpiry=Number.isFinite(expiry.getTime());
+  const affordable = hasExpiry && !funding.error && !funding.isFetching && funding.data?.status==='sufficient'
     && BigInt(funding.data.expires_unix)*1000n>BigInt(Date.now());
   const needsTransfer=!intent || needInput;
   const draftCurrent=!!draft && mode!=='local' && draft.intent.user===session.user_id &&
@@ -188,10 +191,11 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
               {mode==='redacted'&&<Form.Item label="需遮盖的原文片段" extra="每行一项，按原字符匹配；请检查姓名、联系方式和上下文线索。">
                 <Input.TextArea aria-label="需遮盖的原文片段" rows={3} maxLength={8224} value={terms} disabled={pending} onChange={e=>{clearPreview();setTerms(e.target.value);}}/>
               </Form.Item>}
-              <p>获取报价时，平台会收到下方预览中的输入。提交任务后，执行节点可读取该内容；文本遮盖后仍可能保留可识别信息。</p>
+              <p>批准上传后，平台收到下方预览中的字节并免费询价，本次最高预留为 0。确认提交模型任务后，所选执行节点可读取这些明文。遮盖后仍可能保留可识别信息。</p>
               <Button disabled={pending || (!intent && !canPrepare) || !prompt.trim()} onClick={()=>void previewTransfer()}>在本机生成上传预览</Button>
               {previewError&&<Alert type="warning" title={previewError}/>}
               {draftCurrent && draft && <section aria-label="上传内容预览"><p>模型 {draft.intent.price.model_version} · {accountLabel} {draft.intent.budget} · {draft.bytes.length} 字节{mode==='redacted'&&` · 已遮盖 ${draft.count} 处`}</p>
+                <p>执行节点 {draft.intent.price.node_id} · 付款方 {draft.intent.owner}</p>
                 <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{new TextDecoder().decode(draft.bytes)}</pre><p>SHA-256 <code>{draft.intent.upload.sha256}</code></p>
               </section>}
             </>}
@@ -199,7 +203,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
           <Button htmlType={needsTransfer?'button':'submit'} onClick={needsTransfer?()=>void reconcile():undefined} aria-label={needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'} aria-busy={pending} loading={pending} disabled={pending || recoveryError || Boolean(intent?.withdrawn) || (needsTransfer && !draftCurrent) || (!intent && !canPrepare)}>{needInput?'批准上传原请求的预览内容':intent?'核对原任务':'批准上传并获取报价'}</Button>
           {intent && <Button danger disabled={pending || recoveryError} onClick={() => { void withdraw(); }}>{intent.withdrawn ? '继续撤回核对' : intent.confirmed ? '停止原请求' : '删除未提交输入'}</Button>}
         </Form>
-        {prepared && <Card className="quote-card"><FundingDetails query={funding}/><p>本次最大预留</p><strong data-testid="quote-maximum">{formatCredits(prepared.intent.quote!.max_amount)} 积分</strong><p>模型版本 {prepared.intent.price.model_version} · 报价编号 {prepared.intent.quote!.quote_id.slice(0, 8)} · 输出上限 {prepared.intent.output}</p><p className="muted">有效期和可用余额由服务端在提交时检查，实际费用按交付结果结算。</p><Button type="primary" aria-label="确认并提交原请求" aria-busy={pending} loading={pending} disabled={!affordable || Boolean(intent?.withdrawn)} onClick={() => { void reconcile(true); }}>确认并提交原请求</Button></Card>}
+        {prepared && <Card className="quote-card"><FundingDetails query={funding}/><p>本次最大预留</p><strong data-testid="quote-maximum">{formatCredits(prepared.intent.quote!.max_amount)} 积分</strong><p>模型版本 {prepared.intent.price.model_version} · 报价编号 {prepared.intent.quote!.quote_id.slice(0, 8)} · 输出上限 {prepared.intent.output}</p><p>执行节点 <code>{prepared.intent.price.node_id}</code> · 价格版本 <code>{prepared.intent.price.price_version}</code></p><p>报价截止 {hasExpiry?<time dateTime={expiry.toISOString()}>{expiry.toLocaleString()}</time>:'待核对'}</p><p className="muted">有效期和可用余额由服务端在提交时检查，实际费用按交付结果结算。</p><Button type="primary" aria-label="确认并提交原请求" aria-busy={pending} loading={pending} disabled={!affordable || Boolean(intent?.withdrawn)} onClick={() => { void reconcile(true); }}>确认并提交原请求</Button></Card>}
         {intent?.job && <div className="model-request-foot"><Typography.Text copyable={{ text: intent.job.job_id }}>任务 {intent.job.job_id.slice(0, 8)}</Typography.Text>{team && <Link to={'/organizations/'+pathId(team)+'/tasks?job='+pathId(intent.job.job_id)}>查看团队任务结果</Link>}<Button disabled={pending || (!intent.bound && intent.job.execution_state === 'queued')} onClick={freshTask}>开始另一任务</Button></div>}
       </>}
     </Card>
