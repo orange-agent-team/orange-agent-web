@@ -8,7 +8,7 @@ export interface CloudIntent {
 }
 const id=/^[A-Za-z0-9_.:-]{1,128}$/;
 export function cloudKey(s:UserSession){return 'orange.cloud-reservation:'+encodeURIComponent(s.session_id);}
-export function readIntent(storage:Storage,s:UserSession):CloudIntent|undefined {
+export function readIntent(storage:Pick<Storage,'getItem'>,s:UserSession):CloudIntent|undefined {
   const text=storage.getItem(cloudKey(s));if(text===null)return;
   const v:CloudIntent=JSON.parse(text);
   if(!v||v.v!==1||v.owner!==s.personal_owner_id||v.user!==s.user_id||v.session!==s.session_id||
@@ -22,6 +22,7 @@ export function readIntent(storage:Storage,s:UserSession):CloudIntent|undefined 
   if(v.model?.continue_after_tool!==undefined&&(typeof v.model.continue_after_tool!=='boolean'||(v.model.continue_after_tool&&v.model.tool?.name!=='list_directory')))throw Error('INVALID_CLOUD_INTENT');
   if(v.model?.tool && ((v.model.tool.name!=='list_directory'&&!connectorNames.includes(v.model.tool.name))||!/^[0-9a-f]{64}$/.test(v.model.tool.execution_digest)||
       v.definition?.name!==v.model.tool.name||typeof v.definition.description!=='string'||typeof v.definition.parameters!=='object'))throw Error('INVALID_CLOUD_TOOL_INTENT');
+  if((v.model?.tool?.name==='list_repositories'||v.model?.tool?.name==='list_projects') && !v.allow_external_connectors)throw Error('REPOSITORY_OPT_IN_REQUIRED');
   if(v.definition&&!v.model?.tool)throw Error('INVALID_CLOUD_TOOL_INTENT');
   return v;
 }

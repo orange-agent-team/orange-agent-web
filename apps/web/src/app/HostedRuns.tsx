@@ -36,7 +36,8 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
   const tools=useQuery({queryKey:[key,'cloud-tools'],enabled:mode==='model'&&directory&&!intent,queryFn:({signal})=>api.cloudTools(session,signal)});
   const directoryTool=tools.data?.find(t=>t.name==='list_directory');
   const connectors=useQuery({queryKey:[key,'registered-connector-tools'],enabled:mode==='model'&&!intent,queryFn:({signal})=>api.connectorTools(session,signal)});
-  const selectedTool=directory?directoryTool:connectors.data?.find(t=>t.name===connector);
+  const offeredConnectors=connectors.data?.filter(t=>external||!['github','gitlab'].includes(t.connector));
+  const selectedTool=directory?directoryTool:offeredConnectors?.find(t=>t.name===connector);
   const resolvedPrice=prices.data?.find(v=>v.price_version===price)??prices.data?.[0];
   const active=budgets.data?.data.filter(b=>b.status==='active')??[];
   const selected=budget||active[0]?.root_budget_id;
@@ -116,7 +117,7 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
     {mode==='model'&&<label>推理价格版本<Select aria-label="推理价格版本" value={intent?.model?.price_version??resolvedPrice?.price_version}
       disabled={working||!!intent} onChange={setPrice} options={prices.data?.map(p=>({value:p.price_version,label:p.model_version+' · '+p.price_version}))??[]}/></label>}
     {mode==='model'&&<Checkbox checked={directory} disabled={working||!!intent} onChange={e=>{setDirectory(e.target.checked);if(e.target.checked)setConnector(undefined);if(!e.target.checked)setFollowup(false);}}>允许模型申请查看工作区根目录</Checkbox>}
-    {mode==='model'&&!!connectors.data?.length&&<label>连接器工具<Select aria-label="连接器工具" allowClear value={connector} disabled={working||!!intent} placeholder="选择模型可以申请的动作" options={connectors.data.map(t=>({value:t.name,label:t.connector+' · '+t.name}))} onChange={v=>{setConnector(v);if(v){setDirectory(false);setFollowup(false);}}}/></label>}
+    {mode==='model'&&!!connectors.data?.length&&<label>连接器工具<Select aria-label="连接器工具" allowClear value={connector} disabled={working||!!intent} placeholder="选择模型可以申请的动作" options={(offeredConnectors??[]).map(t=>({value:t.name,label:t.connector+' · '+t.name}))} onChange={v=>{setConnector(v);if(v){setDirectory(false);setFollowup(false);}}}/></label>}
     {mode==='model'&&directory&&<><p>每次目录读取还需核对参数并批准。</p>
       <Checkbox checked={followup} disabled={working||!!intent} onChange={e=>setFollowup(e.target.checked)}>保留工作区以便使用工具结果继续回答</Checkbox></>}
     {mode==='model'&&<label>最大输出单位<InputNumber aria-label="最大输出单位" min={1} max={Math.min(4096,Number(resolvedPrice?.output_limit??4096))}
@@ -124,7 +125,10 @@ export default function HostedRuns({session,invalidate}:{session:UserSession;inv
     {mode==='model'&&!intent&&!prices.isFetching&&!resolvedPrice&&<Alert type="warning" title="当前没有可用的审核推理价格"/>}
     <label>工作区期限<Select aria-label="工作区期限" value={ttl} disabled={working||!!intent} onChange={setTtl} options={[{value:300,label:'5 分钟'},{value:900,label:'15 分钟'},{value:3600,label:'1 小时'}]}/></label>
     <Checkbox checked={documents} disabled={working||!!intent} onChange={e=>setDocuments(e.target.checked)}>允许此运行向已登记的第三方文档发送查询</Checkbox>
-    <Checkbox checked={external} disabled={working||!!intent} onChange={e=>setExternal(e.target.checked)}>允许此运行向已登记的第三方仓库发送查询</Checkbox>
+    <Checkbox checked={external} disabled={working||!!intent} onChange={e=>{
+      setExternal(e.target.checked);
+      if(!e.target.checked && (connector==='list_projects'||connector==='list_repositories'))setConnector(undefined);
+    }}>允许此运行向已登记的第三方仓库发送查询</Checkbox>
     <label>运行输入<Input.TextArea aria-label="运行输入" value={prompt} disabled={working||!!intent?.prepared} maxLength={262144} onChange={e=>setPrompt(e.target.value)}/></label>
     <Button type="primary" loading={working} disabled={!storageReady||(!intent&&(!cap.data?.can_reserve||!selected||!prompt.trim()||(mode==='model'&&(!resolvedPrice||((directory||!!connector)&&!selectedTool)))))} onClick={()=>void reserve()}>{intent?'继续原请求':'保存输入并预留工作区'}</Button>
     {intent&&<><p>原请求编号 {intent.key}</p><Button danger disabled={working} onClick={()=>void withdraw()}>撤回原请求</Button></>}

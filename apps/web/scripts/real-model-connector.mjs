@@ -1,13 +1,18 @@
 // Calls go through the built user Web and the actual private user API. No browser routes are mocked.
 export async function exerciseConnectorModel({page,ctx,origin,f,headers}){
   const runs=[];
+  const repository=f.repository_provider;
+  if(repository && !['github','gitlab'].includes(repository))throw Error('Unknown provider fixture');
+  const family=repository??'s3';
+  const name=family==='github'?'list_repositories':family==='gitlab'?'list_projects':'list_objects';
+  if(repository)await page.getByLabel('允许此运行向已登记的第三方仓库发送查询').check();
   await page.getByLabel('最大输出单位').fill('128');
   await page.getByLabel('最大输出单位').press('Tab');
   await page.getByRole('combobox',{name:'连接器工具'}).click();
-  await page.locator('.ant-select-item-option-content').filter({hasText:'s3 · list_objects'}).click();
+  await page.locator('.ant-select-item-option-content').filter({hasText:family+' · '+name}).click();
   for(const approved of [true,false]){
     await page.getByRole('button',{name:'刷新托管运行'}).click();
-    await page.getByRole('textbox',{name:'运行输入'}).fill('Call the list_objects function now with limit 2. Make a function call. Do not answer in text.');
+    await page.getByRole('textbox',{name:'运行输入'}).fill(repository?`Call the ${name} function with page 1 and limit 2. Return the function call now.`:'Call the list_objects function now with limit 2. Make a function call. Do not answer in text.');
     const reserved=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/v1/agent/runs');
     await page.getByRole('button',{name:'保存输入并预留工作区'}).click();
     const run=await (await reserved).json();
@@ -17,11 +22,11 @@ export async function exerciseConnectorModel({page,ctx,origin,f,headers}){
     await page.getByRole('button',{name:'获取模型报价'}).click();
     const quote=await (await quoted).json();
     if(!quote.quote_id)throw Error('Connector quote refused: '+String(quote.code));
-    const grantBase=base+'/connectors/s3';
+    const grantBase=base+'/connectors/'+family;
     const sources=await (await ctx.request.get(origin+grantBase)).json();
-    const source=sources.sources.find(s=>s.source_id==='documents');
+    const source=sources.sources.find(s=>s.source_id===(repository??'documents'));
     if(!source)throw Error('Missing private registered source');
-    const grant=await (await ctx.request.post(origin+grantBase,{headers:headers(crypto.randomUUID()),data:{source_id:source.source_id,source_digest:source.source_digest,duration_seconds:300}})).json();
+    const grant=await (await ctx.request.post(origin+grantBase,{headers:headers(crypto.randomUUID()),data:{source_id:source.source_id,source_digest:source.source_digest,...(repository?{repository_ids:['17']}:{}),duration_seconds:300}})).json();
     if(!grant.grant_id)throw Error('No user Run grant');
     const submitted=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===base+'/model/submit');
     await page.getByRole('button',{name:'确认报价并提交模型作业'}).click();
@@ -31,7 +36,7 @@ export async function exerciseConnectorModel({page,ctx,origin,f,headers}){
     await approve.waitFor({timeout:90000});
     const path=base+'/model/connector';
     const op=await (await ctx.request.get(origin+path)).json();
-    if(op.state!=='waiting_approval'||op.tool!=='list_objects'||op.arguments.limit!==2||op.result||!op.commit_id)throw Error('Invalid source call preview');
+    if(op.state!=='waiting_approval'||op.tool!==name||op.connector!==family||op.arguments.limit!==2||(repository&&op.arguments.page!==1)||op.result||!op.commit_id)throw Error('Invalid source call preview');
     const invalid=await ctx.request.post(origin+path,{headers:headers(crypto.randomUUID()),data:{operation_id:op.operation_id,argument_digest:'0'.repeat(64),decision:'approve',grant_id:grant.grant_id}});
     if(invalid.status()!==409)throw Error('Stale operation allowed');
     if(approved){
@@ -48,8 +53,15 @@ export async function exerciseConnectorModel({page,ctx,origin,f,headers}){
     const recovered=await again.json();
     if(again.status()!==200||recovered.operation_id!==op.operation_id||recovered.state!==result.state)throw Error('Stored decision not recoverable');
     if(approved){
+      if(repository){
+        const rows=result.result?.data.data;
+        if(rows?.length!==1||rows[0].id!=='17'||rows[0].path!=='acme/notes'||rows[0].default_branch!=='main')
+          throw Error('Approved result must contain exactly the registered repository');
+        await page.locator('pre').filter({hasText:'acme/notes'}).waitFor();
+      } else {
       if(JSON.stringify(result.result?.data.keys)!==JSON.stringify(['a.txt','b.txt']))throw Error('Genuine S3 fixture keys required');
       await page.locator('pre').filter({hasText:'a.txt'}).waitFor();
+      }
       await page.screenshot({path:f.connector_screenshot,fullPage:true});
       const revoked=await ctx.request.delete(origin+grantBase+'/'+grant.grant_id,{headers:headers(crypto.randomUUID())});
       if(revoked.status()!==204)throw Error('Revoke failed');

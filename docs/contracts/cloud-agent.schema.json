@@ -829,7 +829,9 @@
             "query_view",
             "list_objects",
             "head_object",
-            "read_object"
+            "read_object",
+            "list_repositories",
+            "list_projects"
           ]
         },
         "execution_digest": {
@@ -1432,13 +1434,17 @@
             "query_view",
             "list_objects",
             "head_object",
-            "read_object"
+            "read_object",
+            "list_repositories",
+            "list_projects"
           ]
         },
         "connector": {
           "enum": [
             "postgres",
-            "s3"
+            "s3",
+            "github",
+            "gitlab"
           ]
         },
         "execution_digest": {
@@ -1466,7 +1472,9 @@
                 "query_view",
                 "list_objects",
                 "head_object",
-                "read_object"
+                "read_object",
+                "list_repositories",
+                "list_projects"
               ]
             },
             "description": {
@@ -1510,7 +1518,7 @@
         },
         "tools": {
           "type": "array",
-          "maxItems": 6,
+          "maxItems": 8,
           "items": {
             "$ref": "#/$defs/HostedConnectorTool"
           }
@@ -1548,13 +1556,17 @@
             "query_view",
             "list_objects",
             "head_object",
-            "read_object"
+            "read_object",
+            "list_repositories",
+            "list_projects"
           ]
         },
         "connector": {
           "enum": [
             "postgres",
-            "s3"
+            "s3",
+            "github",
+            "gitlab"
           ]
         },
         "execution_digest": {

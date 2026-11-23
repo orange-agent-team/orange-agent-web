@@ -28,3 +28,5 @@
 个人账户可从积分与预算页进入设备注册，组织所有者和管理员从团队页进入。设备使用 `orange-worker prepare-enrollment-handoff` 导出公开 JSON。浏览器仅在用户确认后发送公开 CSR 和兑换令牌的摘要。请求编号同时作为幂等键。页面重开时按原编号读取授权状态。授权窗口、证书准备和设备兑换分别显示。撤销已兑换的授权会停用相应设备凭据。
 
 客户端采用固定提交的 CSR JSON Schema、用户错误类型和设备注册 OpenAPI。仅明确的 ENROLLMENT_NOT_FOUND 响应允许发起新授权。组件按当前会话、所有者和请求号隔离状态。会话存储仅保存请求编号。公开交接文件与服务端核对时始终绑定同一公钥摘要和 CSR 摘要。[接口快照](worker-enrollment.openapi.json) · [CSR 格式](worker-certificate-request.schema.json) · [版本与摘要](snapshot.json)
+
+托管 Agent 的仓库清单模型工具要求本次运行选中外部仓库访问。网页按当前登录和服务端登记发现 GitHub、GitLab 的工具定义，另行核对调用内容、数据源和实际仓库授权。恢复草稿时重新检查外部访问选择，读取或执行的响应须与原提供方、工具和执行摘要一致。[托管 Agent 契约](cloud-agent.openapi.json)

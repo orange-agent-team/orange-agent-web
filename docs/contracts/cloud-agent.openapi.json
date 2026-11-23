@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange hosted Agent development control plane",
-    "version": "0.5.2",
+    "version": "0.5.3",
     "description": "Reservations require a current platform Host, active owner budget and an available personal text input. A queued Run has not executed a model or tool. Workspace lease, Run execution and accounting are distinct."
   },
   "paths": {
@@ -1005,7 +1005,18 @@
             "UserSession": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "repository_listing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include eligible registered GitHub and GitLab listing definitions. Actual source access requires external access consent for this Run and a separate per-call approval."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Current persisted projection",
@@ -1990,7 +2001,9 @@
               "query_view",
               "list_objects",
               "head_object",
-              "read_object"
+              "read_object",
+              "list_repositories",
+              "list_projects"
             ]
           },
           "execution_digest": {
@@ -2593,13 +2606,17 @@
               "query_view",
               "list_objects",
               "head_object",
-              "read_object"
+              "read_object",
+              "list_repositories",
+              "list_projects"
             ]
           },
           "connector": {
             "enum": [
               "postgres",
-              "s3"
+              "s3",
+              "github",
+              "gitlab"
             ]
           },
           "execution_digest": {
@@ -2627,7 +2644,9 @@
                   "query_view",
                   "list_objects",
                   "head_object",
-                  "read_object"
+                  "read_object",
+                  "list_repositories",
+                  "list_projects"
                 ]
               },
               "description": {
@@ -2671,7 +2690,7 @@
           },
           "tools": {
             "type": "array",
-            "maxItems": 6,
+            "maxItems": 8,
             "items": {
               "$ref": "#/components/schemas/HostedConnectorTool"
             }
@@ -2709,13 +2728,17 @@
               "query_view",
               "list_objects",
               "head_object",
-              "read_object"
+              "read_object",
+              "list_repositories",
+              "list_projects"
             ]
           },
           "connector": {
             "enum": [
               "postgres",
-              "s3"
+              "s3",
+              "github",
+              "gitlab"
             ]
           },
           "execution_digest": {
