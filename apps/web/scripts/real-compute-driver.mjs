@@ -38,6 +38,19 @@ const server=createServer({key:readFileSync(resolve(tls,'key.pem')),cert:readFil
   const bytes=readFileSync(actual);res.writeHead(200,{'Content-Type':types[extname(actual)]??'application/octet-stream','Content-Length':bytes.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(req.method==='HEAD'?undefined:bytes);
  }catch{res.writeHead(400);res.end();}
 });
+async function inspectClock(label, expectedBasis, message) {
+ const panel = page.locator('details').filter({has:page.getByText(label,{exact:true})});
+ const pending = page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/retention'));
+ await panel.locator('summary').click();
+ const response=await pending, clock=await response.json();
+ if(response.status()!==200 || clock.basis!==expectedBasis || BigInt(clock.due_unix)-BigInt(clock.anchor_unix)!==86400n){
+   throw Error('Unexpected object retention basis or deadline');
+ }
+ await panel.getByText(message,{exact:true}).waitFor();
+ if(await panel.locator('time').getAttribute('datetime')!==new Date(Number(clock.due_unix)*1000).toISOString())throw Error('Displayed deadline differs from authorized version');
+ await panel.locator('summary').click();
+ return clock;
+}
 try{
  await new Promise((ok,bad)=>{server.once('error',bad);server.listen(Number(origin.port),'127.0.0.1',ok);});
  browser=await chromium.launch({channel:'chrome',headless:true});const context=await browser.newContext({baseURL:origin.origin,ignoreHTTPSErrors:true,viewport:{width:1440,height:1100}});
@@ -129,9 +142,11 @@ try{
  if(!actualDeadline || Date.parse(actualDeadline)<=Date.now() || !await page.locator('.quote-card').getByText(/价格版本/).count())throw Error('Quote deadline or price version unavailable before submission');
  console.log(JSON.stringify({disclosedBeforeUpload:true,plainTextRiskVisible:true,dataTransferHold:'0',payerAndNodeShown:true,originalQuoteDeadlineVisible:true}));
  if(!(await funding.innerText()).includes(payer))throw Error('Wrong payer in funding view');
+ const originalClock=await inspectClock('输入保留期限','published','从发布输入起保留 24 小时');
  await page.getByRole('button',{name:'确认并提交原请求',exact:true}).click();const response=await submitted;if(response.status()!==200)throw Error('Actual model Job not accepted');const job=await response.json();
  if(f.team)await page.getByRole('link',{name:'查看团队任务结果'}).click();
  await page.getByTestId('model-result-text').waitFor({timeout:60000});const text=await page.getByTestId('model-result-text').innerText();if(!text.trim())throw Error('No actual model output rendered');
+ const outputClock=await inspectClock('结果保留期限','response_commit','从提交交付结果起保留 24 小时');
  const base=`/api/v1/owners/${encodeURIComponent(payer)}`;
  const metadataResponse=await page.request.get(`${base}/jobs/${encodeURIComponent(job.job_id)}/result`);if(metadataResponse.status()!==200)throw Error('Result metadata denied');const artifact=await metadataResponse.json();
  const content=await page.request.get(`${base}/uploads/${encodeURIComponent(artifact.upload_id)}/content?version_id=${encodeURIComponent(artifact.version_id)}`);if(content.status()!==200)throw Error('Result bytes denied');const bytes=await content.body();
@@ -145,7 +160,7 @@ try{
  await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
  const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
  await page.getByRole('button',{name:f.team?'刷新团队任务':'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:f.team?'我的团队任务':'模型任务',exact:true}).waitFor();
- writeFileSync(output,JSON.stringify({reviewed_model_digest:model.model_sha256,reviewed_model_license:model.license,disclosed_before_upload:true,plaintext_warning_visible:true,upload_maximum_microcredits:"0",payer_and_node_shown:true,original_quote_deadline_visible:true,team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ writeFileSync(output,JSON.stringify({input_retention_basis:originalClock.basis,output_retention_basis:outputClock.basis,reviewed_model_digest:model.model_sha256,reviewed_model_license:model.license,disclosed_before_upload:true,plaintext_warning_visible:true,upload_maximum_microcredits:"0",payer_and_node_shown:true,original_quote_deadline_visible:true,team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
  console.log('PASS actual browser withdrawal barrier, late-submit refusal, upload/quote/confirmation/Job/result, retained late-withdrawal charge and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
 }catch(error){
  try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}
