@@ -28,6 +28,7 @@
     "vitest.config.ts",
     "playwright.oidc.config.ts",
     "playwright.account.config.ts",
-    "playwright.compute.config.ts"
+    "playwright.compute.config.ts",
+    "playwright.hosted-approval.config.ts"
   ]
 }
