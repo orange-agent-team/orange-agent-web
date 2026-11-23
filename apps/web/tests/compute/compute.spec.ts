@@ -99,3 +99,30 @@ test('returning to a job cannot redisplay the previous result after its read gra
  expect(state.submits).toBe(1);
  expect(state.cancels).toBe(0);
 });
+
+test('source details identify the exact current offer and clear an earlier match when terms change', async ({page}) => {
+  const state = await fixture(page);
+  let matches = true;
+  let reads = 0;
+  await page.route('**/api/v1/models', async route => {
+    reads++;
+    expect(route.request().method()).toBe('GET');
+    await route.fulfill({json: {data: [{modality:'text', model_version:price.model_version,
+      model_sha256:'d'.repeat(64), repository:'fixture/model', revision:'a'.repeat(40), license:'Apache-2.0',
+      context_tokens:2048, max_request_bytes:262144, offers:[{...price,input_price:matches?'2000':'2001'}]}]}});
+  });
+  await page.goto('/tasks');
+  await page.getByRole('combobox', {name:'可用模型'}).selectOption(price.price_version);
+  expect(reads).toBe(0);
+  const details = page.getByText('模型来源和计费限制', {exact:true});
+  await details.click();
+  await expect(page.getByText('Apache-2.0', {exact:true})).toBeVisible();
+  await expect(page.getByText('输入 0.002 积分，输出 0.006 积分', {exact:true})).toBeVisible();
+  await details.click();
+  matches = false;
+  await details.click();
+  await expect(page.getByText('当前价格版本没有匹配的已审核模型记录。')).toBeVisible();
+  await expect(page.getByText('Apache-2.0', {exact:true})).toHaveCount(0);
+  expect(state.quoteKeys).toHaveLength(0);
+  expect(state.submits).toBe(0);
+});

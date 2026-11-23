@@ -51,6 +51,19 @@ try{
   if(!await selected.isDisabled()||await selected.inputValue()!==f.team.budget)throw Error('Member budget was not fixed to authorized allocation');
  }else await page.getByRole('combobox',{name:'个人预算'}).selectOption(f.budget);
  await page.getByRole('combobox',{name:'可用模型'}).selectOption(f.price);
+ const catalogue = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/models');
+ const modelSummary = page.getByText('模型来源和计费限制', {exact:true});
+ await modelSummary.click();
+ const catalogueReply=await catalogue;
+ if(catalogueReply.status()!==200)throw Error('Current model catalogue unavailable');
+ const models=await catalogueReply.json();
+ const model=models.data.find(row=>row.offers.some(offer=>offer.price_version===f.price));
+ if(!model||model.license!=='Apache-2.0'||model.repository!=='Qwen/Qwen2.5-0.5B-Instruct-GGUF'||
+    model.model_sha256!=='74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db')throw Error('Unexpected licensed model identity');
+ await page.getByText(model.model_sha256,{exact:true}).waitFor();
+ await page.getByText(model.license,{exact:true}).waitFor();
+ await modelSummary.click();
+
  let inputWrites=0,unreviewedSecret=false,uploadedDigest;
  const sensitive='private-fixture@example.test';
  page.on('request',req=>{
@@ -132,7 +145,7 @@ try{
  await page.screenshot({path:resolve(dirname(file),'browser-model-result.png'),fullPage:true});
  const removed=await page.request.delete(`${base}/uploads/${encodeURIComponent(input.upload_id)}`,{headers:{Origin:origin.origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':input.upload_id}});if(removed.status()!==200)throw Error('Actual deletion rejected');
  await page.getByRole('button',{name:f.team?'刷新团队任务':'刷新任务'}).click();await page.getByText('结果暂不可读',{exact:true}).waitFor();if(await page.getByTestId('model-result-text').count())throw Error('Deleted source output remained visible');await page.getByRole('heading',{name:f.team?'我的团队任务':'模型任务',exact:true}).waitFor();
- writeFileSync(output,JSON.stringify({disclosed_before_upload:true,plaintext_warning_visible:true,upload_maximum_microcredits:"0",payer_and_node_shown:true,original_quote_deadline_visible:true,team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
+ writeFileSync(output,JSON.stringify({reviewed_model_digest:model.model_sha256,reviewed_model_license:model.license,disclosed_before_upload:true,plaintext_warning_visible:true,upload_maximum_microcredits:"0",payer_and_node_shown:true,original_quote_deadline_visible:true,team_budget_recovery:!!f.team,prevented_invocation:previewQuote.invocation_id,withdrawal_receipt:withdrawal.receipt_id,late_withdrawal_preserved:true,job_id:job.job_id,invocation_id:job.invocation_id,quote_id:response.request().postDataJSON().quote_id,input_upload_id:input.upload_id,input_version_id:input.version_id,output_artifact_id:artifact.artifact_id,output_sha256:artifact.sha256,text_sha256:hash(Buffer.from(text)),content_denied_after_deletion:true})+'\n',{mode:0o600});
  console.log('PASS actual browser withdrawal barrier, late-submit refusal, upload/quote/confirmation/Job/result, retained late-withdrawal charge and deletion denial; session/price/enrollment fixtures, no real payment or hosted Agent certification');
 }catch(error){
  try{if(page){write('browser-error.txt',JSON.stringify({error:String(error),responses:failedResponses,main:await page.locator('main').innerText()})+'\n');await page.screenshot({path:resolve(dirname(file),'browser-failed.png'),fullPage:true});}}catch{}
