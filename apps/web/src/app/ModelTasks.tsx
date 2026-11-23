@@ -67,8 +67,8 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const budgets = useQuery({ queryKey: [scope, 'model-budgets'], enabled: !team, queryFn: ({ signal }) => api.budgets(session, undefined, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], enabled: !team, queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
   const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.jobSnapshot(session, selected!, signal), enabled: !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
-  useJobEvents(session.session_id,api.owner(session),team?undefined:selected,[scope,'job',selected],[scope,'job-result',selected]);
-  const result = useQuery({ queryKey: [scope, 'job-result', selected], enabled: !team && current.data?.job.execution_state === 'succeeded' && !current.error,
+  const jobEvents=useJobEvents(session.session_id,api.owner(session),team?undefined:selected,[scope,'job',selected],[scope,'job-result',selected]);
+  const result = useQuery({ queryKey: jobEvents.resultKey, enabled: jobEvents.visible && !team && current.data?.job.execution_state === 'succeeded' && !current.error,
     queryFn: async ({ signal }) => api.resultDocument(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
   const offer = !prices.error ? prices.data?.find(row => row.price_version === price) : undefined;
   const activeBudgets = teamBudget ? [teamBudget] : !budgets.error ? budgets.data?.data.filter(row => row.status === 'active') ?? [] : [];
@@ -103,7 +103,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
     if(team) void client.invalidateQueries({queryKey:['team-model-budget',session.session_id,team,fixedBudget]});
     else void budgets.refetch();
   };
-  const refresh = () => { if(!team) void jobs.refetch(); void prices.refetch(); refreshBudget(); if(prepared)void funding.refetch(); if (!team && selected) { void current.refetch(); if (current.data?.job.execution_state === 'succeeded') void result.refetch(); } };
+  const refresh = () => { if(!team) void jobs.refetch(); void prices.refetch(); refreshBudget(); if(prepared)void funding.refetch(); if (!team && selected) { void current.refetch(); if (jobEvents.visible && current.data?.job.execution_state === 'succeeded') void result.refetch(); } };
   const reconcile = async (approve = false) => {
     if (busy.current || initializing || recoveryError || (approve && !affordable)) return;
     busy.current = true; setPending(true); setFailure(undefined);
@@ -170,7 +170,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
     catch (error) { setFailure(error); }
   };
   const visibleJob = !current.error ? current.data?.job : undefined;
-  const verifiedDocument = !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
+  const verifiedDocument = jobEvents.visible && !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
   return <>
     <div className="page-heading"><div><h1>{team ? '团队文本任务' : '模型任务'}</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><div><Link to={team ? '/organizations/'+pathId(team)+'/tasks' : '/tasks/audio'}>{team ? '我的团队任务' : '音频预检'}</Link> <Button onClick={refresh}>刷新任务</Button></div></div>
     {recoveryError && <Alert type="error" showIcon title="本地恢复记录无法核对" description="创建入口已关闭，你仍可在任务列表中查询现有任务。" />}

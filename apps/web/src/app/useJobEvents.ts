@@ -1,15 +1,23 @@
-import {useEffect} from 'react';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {JobEventReceiver,jobSocketUrl} from '../api/job-events';
 import type {JobEventCursor} from '../api/compute-contracts';
 
+function onVisibilityChange(notify:()=>void){
+  document.addEventListener('visibilitychange',notify);
+  return ()=>document.removeEventListener('visibilitychange',notify);
+}
+const isVisible=()=>!document.hidden;
+
 export function useJobEvents(sessionId:string,owner:string,job:string|undefined,statusKey:readonly unknown[],resultKey:readonly unknown[]){
   const cache=useQueryClient();
+  const visible=useSyncExternalStore(onVisibilityChange,isVisible);
+  const [resultGeneration,setResultGeneration]=useState(0);
   // These public query keys contain primitive strings. A normal rerender keeps the socket.
   const statusScope=JSON.stringify(statusKey);
   const resultScope=JSON.stringify(resultKey);
   useEffect(()=>{
-    if(!job||typeof WebSocket==='undefined') return;
+    if(!job) return;
     const status=JSON.parse(statusScope) as unknown[];
     const documentKey=JSON.parse(resultScope) as unknown[];
     let socket:WebSocket|undefined;
@@ -19,8 +27,10 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
     let previousGeneration:string|undefined;
     let timer:ReturnType<typeof setTimeout>|undefined;
     function discardResult(){
-      void cache.cancelQueries({queryKey:documentKey,exact:true});
-      cache.removeQueries({queryKey:documentKey,exact:true});
+      // A late read from the previous connection cannot populate a new generation.
+      if(!stopped) setResultGeneration(value=>value+1);
+      void cache.cancelQueries({queryKey:documentKey,exact:false});
+      cache.removeQueries({queryKey:documentKey,exact:false});
     }
     function detach(){
       clearTimeout(timer);
@@ -29,7 +39,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
       if(prior && prior.readyState<2) prior.close(1000);
     }
     function connect(){
-      if(stopped||document.hidden||socket||!job) return;
+      if(stopped||document.hidden||socket||!job||typeof WebSocket==='undefined') return;
       let ws:WebSocket;
       try {ws=new WebSocket(jobSocketUrl(location.origin,owner,job,cursor),'orange.job-events.v1');}
       catch{return;} // HTTP status polling also supports older deployments.
@@ -62,7 +72,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
       ws.onclose=()=>{
         if(stopped||socket!==ws) return;
         socket=undefined;
-        if(previousGeneration!==undefined) discardResult();
+        discardResult();
         void cache.invalidateQueries({queryKey:status,exact:true});
         if(!document.hidden&&retries<3){
           timer=setTimeout(connect,500*(2**retries));
@@ -83,4 +93,5 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
       discardResult();
     };
   },[cache,sessionId,owner,job,statusScope,resultScope]);
+  return {visible,resultKey:[...resultKey,resultGeneration]};
 }

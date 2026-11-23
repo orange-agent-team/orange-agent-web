@@ -78,3 +78,24 @@ test('running cancellation remains pending until an independent terminal fact ar
  const state=await fixture(page,{running:true});await quote(page);await page.getByRole('button',{name:'确认并提交原请求'}).click();await page.getByRole('button',{name:'取消任务',exact:true}).click();await expect(page.getByText('取消请求已接收，执行终止和积分释放仍待确认。')).toBeVisible();expect(state.job!.settlement_state).toBe('pending');expect(state.job!.charge).toBeNull();expect(state.cancels).toBe(1);
  state.job!.execution_state='cancelled';state.job!.settlement_state='settled';state.job!.charge='0';await page.getByRole('button',{name:'刷新任务'}).click();await expect(page.getByText(/已记费用 0 积分/)).toBeVisible();expect(state.submits).toBe(1);
 });
+
+test('returning to a job cannot redisplay the previous result after its read grant is revoked',async({page})=>{
+ const state=await fixture(page);
+ await page.routeWebSocket('**/events/ws*',()=>{});
+ await quote(page);
+ await page.getByRole('button',{name:'确认并提交原请求'}).click();
+ const content=page.getByTestId('model-result-text');
+ await expect(content).toContainText('Hello <script');
+ const setHidden=(hidden:boolean)=>page.evaluate(value=>{
+   Object.defineProperty(document,'hidden',{value,configurable:true});
+   document.dispatchEvent(new Event('visibilitychange'));
+ },hidden);
+ await setHidden(true);
+ await expect(content).toHaveCount(0);
+ state.deleted=true;
+ await setHidden(false);
+ await expect(page.getByText('结果暂不可读',{exact:true})).toBeVisible();
+ await expect(content).toHaveCount(0);
+ expect(state.submits).toBe(1);
+ expect(state.cancels).toBe(0);
+});
