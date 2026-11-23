@@ -16,6 +16,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
     let cursor:JobEventCursor|null=null;
     let stopped=false;
     let retries=0;
+    let previousGeneration:string|undefined;
     let timer:ReturnType<typeof setTimeout>|undefined;
     function discardResult(){
       void cache.cancelQueries({queryKey:documentKey,exact:true});
@@ -33,7 +34,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
       try {ws=new WebSocket(jobSocketUrl(location.origin,owner,job,cursor),'orange.job-events.v1');}
       catch{return;} // HTTP status polling also supports older deployments.
       socket=ws;
-      const receiver=new JobEventReceiver(job,cursor);
+      const receiver=new JobEventReceiver(job,cursor,previousGeneration);
       const current=()=>!stopped&&socket===ws&&ws.readyState===WebSocket.OPEN;
       ws.onmessage=async message=>{
         if(!current()) return;
@@ -52,6 +53,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
           if(current()){
             ws.send(JSON.stringify(ack));
             cursor=ack.cursor;
+            previousGeneration=ack.connection_generation;
           }
         }catch{
           if(current()) ws.close(4001,'invalid or unapplied frame');
@@ -60,7 +62,7 @@ export function useJobEvents(sessionId:string,owner:string,job:string|undefined,
       ws.onclose=()=>{
         if(stopped||socket!==ws) return;
         socket=undefined;
-        discardResult();
+        if(previousGeneration!==undefined) discardResult();
         void cache.invalidateQueries({queryKey:status,exact:true});
         if(!document.hidden&&retries<3){
           timer=setTimeout(connect,500*(2**retries));

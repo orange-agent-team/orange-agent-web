@@ -28,6 +28,8 @@ describe('Job event stream generations',()=>{
  it('rejects wrong scope, generation, future fields and out-of-order metadata before publishing',async()=>{
   const receiver=new JobEventReceiver(job.job_id,cursor);
   const apply=vi.fn(async()=>{});
+  const reconnected=new JobEventReceiver(job.job_id,cursor,generation);
+  await expect(reconnected.accept(wire(page),apply)).rejects.toThrow('STALE_JOB_CONNECTION');
   for(const altered of [{...page,job_id:'other'},{...page,cursor:{...next,stream_id:'foreign'}},
       {...page,events:[{...event,seq:'9007199254740995'}]},{...page,events:[{...event,prompt:'raw input'}]}]){
    await expect(receiver.accept(wire(altered),apply)).rejects.toThrow();

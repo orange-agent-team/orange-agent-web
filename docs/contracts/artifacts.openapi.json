@@ -1751,7 +1751,8 @@
           "ack_timeout_ms": 5000,
           "max_inbound_message_bytes": 2048,
           "max_batch_bytes": 65536,
-          "max_concurrent_sockets_per_router": 64
+          "max_concurrent_sockets_per_router": 64,
+          "max_concurrent_sockets_per_user": 4
         }
       }
     }

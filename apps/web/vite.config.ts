@@ -9,8 +9,8 @@ export default defineConfig({
   server: { host: '127.0.0.1', port: tls ? 43122 : 43120, strictPort: true,
     fs: { allow: [fileURLToPath(new URL('../../', import.meta.url))] },
     ...(tls ? { https: { key: readFileSync(resolve(tls, 'key.pem')), cert: readFileSync(resolve(tls, 'cert.pem')) },
-      proxy: { '/api/v1': { target: 'http://127.0.0.1:43103', changeOrigin: false },
-        '/admin/v1': { target: 'http://127.0.0.1:43103', changeOrigin: false } } } : {}),
+      proxy: { '/api/v1': { target: 'http://127.0.0.1:43103', changeOrigin: false, ws: true },
+        '/admin/v1': { target: 'http://127.0.0.1:43103', changeOrigin: false, ws: true } } } : {}),
   },
   preview: { host: '127.0.0.1', port: 43121, strictPort: true },
   build: { sourcemap: false, manifest: true, rolldownOptions: { output: { codeSplitting: { groups: [

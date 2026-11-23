@@ -10,6 +10,7 @@ function sequence(value:string):bigint {
 
 export function jobSocketUrl(origin:string,owner:string,job:string,cursor:JobEventCursor|null):URL {
   const url=new URL('/api/v1/owners/'+pathId(owner)+'/jobs/'+pathId(job)+'/events/ws',origin);
+  if(url.username||url.password) throw Error('INVALID_JOB_STREAM_ORIGIN');
   if(url.protocol==='https:') url.protocol='wss:';
   else if(url.protocol==='http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname)) url.protocol='ws:';
   else throw Error('INVALID_JOB_STREAM_ORIGIN');
@@ -25,13 +26,13 @@ export function jobSocketUrl(origin:string,owner:string,job:string,cursor:JobEve
 export class JobEventReceiver {
   private generation?:string;
   private processing=false;
-  constructor(private readonly jobId:string,private cursor:JobEventCursor|null){}
+  constructor(private readonly jobId:string,private cursor:JobEventCursor|null,private readonly previousGeneration?:string){}
   async accept(raw:unknown,apply:(value:JobHistory,first:boolean)=>Promise<void>){
     if(this.processing) throw Error('UNACKNOWLEDGED_JOB_FRAME');
     if(typeof raw!=='string'||raw.length>65536||new TextEncoder().encode(raw).byteLength>65536) throw Error('INVALID_JOB_FRAME');
     const frame:unknown=JSON.parse(raw);
     if(!isJobStreamFrame(frame)||!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(frame.connection_generation)) throw Error('INVALID_JOB_FRAME');
-    if(this.generation!==undefined && this.generation!==frame.connection_generation) throw Error('STALE_JOB_CONNECTION');
+    if(frame.connection_generation===this.previousGeneration || (this.generation!==undefined && this.generation!==frame.connection_generation)) throw Error('STALE_JOB_CONNECTION');
     const history=frame.history;
     if(history.cursor) sequence(history.cursor.after);
     if(history.kind==='page'){
