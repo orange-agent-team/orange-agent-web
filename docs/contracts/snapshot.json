@@ -1,15 +1,15 @@
 {
-  "version": "0.26.0",
+  "version": "0.27.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "ac7f43380f7870a892f7f06d632228eed369f2c5",
+  "source_commit": "e82e767d448f8ef8f3124707d315cc4ed336ad48",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
-      "sha256": "74184c6a73b54217b162d2ff31eb80813008ea32c2122c0a1eb463edc251437c"
+      "sha256": "f271c49c1c56a5c1ae661d450f30c804094f9237289ce83488cad8874e350171"
     },
     "user.openapi.json": {
       "source": "contracts/openapi/user.v1.json",
-      "sha256": "117d8d71effcc619606d1e5ae25f198d7ca275a9b7d5232784fa11ec57fab2de"
+      "sha256": "9fdd5d8501c60bcb001a679989d1d95686eeabfe8ae238627e2b36438b208664"
     },
     "account.schema.json": {
       "source": "contracts/json-schema/account.schema.json",
@@ -106,6 +106,14 @@
     "models.schema.json": {
       "source": "contracts/json-schema/models.schema.json",
       "sha256": "0bd614520551115be302797d60516a6c5ffba68a9dc192baf21235cee1f2d28f"
+    },
+    "worker-enrollment.openapi.json": {
+      "source": "contracts/openapi/worker-enrollment.v1.json",
+      "sha256": "60136934584c7f665779a4a4efc897a811efcdbf5f14eeeddd3a1d72cab5670c"
+    },
+    "worker-certificate-request.schema.json": {
+      "source": "contracts/json-schema/worker-certificate-request.v1.json",
+      "sha256": "0940031daeb33ce49f5c26b4f46d9836ab0c7d888883d3196d2689b83d78fc71"
     }
   }
 }

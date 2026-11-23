@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Public Worker enrollment certificate request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "request_id", "purpose", "spki_sha256", "csr_sha256", "csr_pem"],
+  "properties": {
+    "version": { "const": 1 },
+    "request_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "purpose": { "const": "public_worker" },
+    "spki_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "csr_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "csr_pem": { "type": "string", "minLength": 65, "maxLength": 4096, "pattern": "^-----BEGIN CERTIFICATE REQUEST-----" }
+  }
+}
