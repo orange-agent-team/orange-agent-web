@@ -1,3 +1,4 @@
+import {useJobEvents} from './useJobEvents';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -66,6 +67,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const budgets = useQuery({ queryKey: [scope, 'model-budgets'], enabled: !team, queryFn: ({ signal }) => api.budgets(session, undefined, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], enabled: !team, queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
   const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.jobSnapshot(session, selected!, signal), enabled: !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
+  useJobEvents(session.session_id,api.owner(session),team?undefined:selected,[scope,'job',selected],[scope,'job-result',selected]);
   const result = useQuery({ queryKey: [scope, 'job-result', selected], enabled: !team && current.data?.job.execution_state === 'succeeded' && !current.error,
     queryFn: async ({ signal }) => api.resultDocument(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
   const offer = !prices.error ? prices.data?.find(row => row.price_version === price) : undefined;

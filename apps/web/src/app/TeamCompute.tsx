@@ -1,3 +1,4 @@
+import {useJobEvents} from './useJobEvents';
 import {useEffect,useMemo,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Alert,Button,Card,Space,Spin,Typography} from 'antd';
@@ -39,6 +40,7 @@ function OwnedJobs({session,org}:{session:UserSession;org:string}){
   const key=['team-jobs',session.session_id,org];
   const jobs=useQuery({queryKey:[...key,'list',after],enabled:allowed,queryFn:({signal})=>api.jobs(session,after,signal),refetchInterval:5000,retry:false});
   const job=useQuery({queryKey:[...key,'job',selected],enabled:allowed&&!!selected,queryFn:({signal})=>api.jobSnapshot(session,selected!,signal),refetchInterval:5000,retry:false});
+  useJobEvents(session.session_id,org,allowed?(selected??undefined):undefined,[...key,'job',selected],[...key,'document',selected]);
   const result=useQuery({queryKey:[...key,'document',selected],enabled:allowed&&visible&&!!selected&&job.isSuccess&&job.data.job.execution_state==='succeeded',
     queryFn:async({signal})=>api.resultDocument(session,await api.result(session,selected!,signal),signal),refetchInterval:5000,refetchIntervalInBackground:false,retry:false});
   useEffect(()=>{function visibility(){setVisible(!document.hidden);if(document.hidden){void client.cancelQueries({queryKey:['team-jobs',session.session_id,org,'document']});client.removeQueries({queryKey:['team-jobs',session.session_id,org,'document']});}}

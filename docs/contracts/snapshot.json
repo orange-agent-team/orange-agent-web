@@ -1,7 +1,7 @@
 {
-  "version": "0.22.0",
+  "version": "0.23.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "2e9541075c904830c83047e554987af58dce10f3",
+  "source_commit": "cf1523108b5ff241f37722134be7bc611f5f12c1",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
@@ -21,11 +21,11 @@
     },
     "artifacts.schema.json": {
       "source": "contracts/json-schema/artifacts.schema.json",
-      "sha256": "89a1e4435553a0e898bc617a305b9f29eef0fb5491f0c7c003aba44bf07a8d31"
+      "sha256": "88e02d306f7c1afef000af08561f2b8fb0bb785c40c4dc8a24d176f04bb3e968"
     },
     "artifacts.openapi.json": {
       "source": "contracts/openapi/artifacts.v1.json",
-      "sha256": "0dc0eb3db6f923aea3e312840752b02c123bc8a111281dc4ab628af8d4950eea"
+      "sha256": "080d42b23aaf9459d1bf27399e345257fbfaca0461568c7c5e77a6918addc834"
     },
     "pricing.schema.json": {
       "source": "contracts/json-schema/pricing.schema.json",

@@ -1419,6 +1419,232 @@
         "fee_bps",
         "expires_at_unix"
       ]
+    },
+    "JobEventCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id",
+        "after"
+      ],
+      "properties": {
+        "stream_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "after": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        }
+      }
+    },
+    "JobDurableEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "seq",
+        "event_type",
+        "attempt_id",
+        "occurred_at",
+        "payload_digest"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "seq": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "payload_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "JobEventSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "job",
+        "job_version",
+        "cursor"
+      ],
+      "properties": {
+        "kind": {
+          "const": "snapshot"
+        },
+        "job": {
+          "$ref": "#/$defs/JobView"
+        },
+        "job_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobEventCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JobEventReset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "job",
+        "job_version",
+        "cursor"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reset"
+        },
+        "job": {
+          "$ref": "#/$defs/JobView"
+        },
+        "job_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobEventCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JobEventPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "job_id",
+        "cursor",
+        "events"
+      ],
+      "properties": {
+        "kind": {
+          "const": "page"
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "cursor": {
+          "$ref": "#/$defs/JobEventCursor"
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/JobDurableEvent"
+          }
+        }
+      }
+    },
+    "JobHistory": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/JobEventSnapshot"
+        },
+        {
+          "$ref": "#/$defs/JobEventReset"
+        },
+        {
+          "$ref": "#/$defs/JobEventPage"
+        }
+      ]
+    },
+    "JobStreamFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "connection_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "history": {
+          "$ref": "#/$defs/JobHistory"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "connection_generation",
+        "history"
+      ]
+    },
+    "JobStreamAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "ack"
+        },
+        "connection_generation": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobEventCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "connection_generation",
+        "cursor"
+      ]
     }
   }
 }

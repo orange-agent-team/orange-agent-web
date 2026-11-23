@@ -1,6 +1,6 @@
 // Both competing cancellation requests go to the real user router. The browser
 // only pauses one in flight so it cannot silently acquire a newer precondition.
-import {chromium} from '@playwright/test';
+import {chromium,expect} from '@playwright/test';
 import {preview} from 'vite';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -15,7 +15,7 @@ const f=JSON.parse(input);
 const upstream=new URL(f.api);
 if(upstream.hostname!=='127.0.0.1'||upstream.protocol!=='http:'||!upstream.port||f.origin!=='https://127.0.0.1:43122')throw Error('Private development fixture required');
 const server=await preview({root,configFile:false,logLevel:'silent',preview:{host:'127.0.0.1',port:43122,strictPort:true,
- https:{key:readFileSync(resolve(tls,'key.pem')),cert:readFileSync(resolve(tls,'cert.pem'))},proxy:{'/api/v1/':{target:upstream.origin,changeOrigin:false}}}});
+ https:{key:readFileSync(resolve(tls,'key.pem')),cert:readFileSync(resolve(tls,'cert.pem'))},proxy:{'/api/v1/':{target:upstream.origin,changeOrigin:false,ws:true}}}});
 let browser;
 try{
  browser=await chromium.launch({channel:'chrome',headless:true});
@@ -24,10 +24,20 @@ try{
  const page=await context.newPage();
  page.setDefaultTimeout(18000);
  const path='/api/v1/owners/'+encodeURIComponent(f.owner)+'/jobs/'+encodeURIComponent(f.job);
+ const frames=[];
+ const acknowledgments=[];
+ page.on('websocket',ws=>{
+  if(new URL(ws.url()).pathname!==path+'/events/ws')return;
+  ws.on('framereceived',({payload})=>{if(typeof payload==='string')frames.push(JSON.parse(payload));});
+  ws.on('framesent',({payload})=>{if(typeof payload==='string')acknowledgments.push(JSON.parse(payload));});
+ });
  const read=page.waitForResponse(r=>r.url()===f.origin+path&&r.request().method()==='GET'&&r.status()===200);
  await page.goto(f.team?'/organizations/'+encodeURIComponent(f.owner)+'/tasks?job='+encodeURIComponent(f.job):'/tasks');
  if(!f.team)await page.getByRole('button',{name:'查看任务 '+f.job,exact:true}).click();
  const observed=(await read).headers()['x-orange-job-version'];
+ await expect.poll(()=>acknowledgments.length,{timeout:12000}).toBeGreaterThan(0);
+ const snapshot=frames.find(frame=>frame.history.kind==='snapshot'&&frame.history.job.job_id===f.job);
+ if(!snapshot||!acknowledgments.some(a=>a.kind==='ack'&&a.connection_generation===snapshot.connection_generation))throw Error('No native browser acknowledgment for this Job snapshot');
  if(!observed||!/^\d+$/.test(observed))throw Error('Missing observed version');
  let posts=0;
  let competingStatus;
@@ -52,7 +62,9 @@ try{
  }
  await page.getByRole('button',{name:f.team?'取消团队任务':'取消任务',exact:true}).waitFor({state:'hidden'});
  if(posts!==1)throw Error('Portal resent a cancellation without another operator action');
- console.log(JSON.stringify({team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
+ await expect.poll(()=>frames.some(frame=>frame.history.kind==='page'&&frame.history.events.some(e=>e.event_type==='job.cancelled')),{timeout:12000}).toBe(true);
+ if(posts!==1)throw Error('Event replay caused a second business command');
+ console.log(JSON.stringify({event_snapshot:true,durable_cancellation_event:true,acknowledgments:acknowledgments.length,team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.httpServer.close(resolve));

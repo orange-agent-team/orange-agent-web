@@ -44,8 +44,14 @@ export interface JobLookup { owner_id: string; user_id: string; quote_id: string
 export interface Withdrawal { owner_id:string; user_id:string; invocation_id:string; quote_id:string; prevented:boolean; receipt_id:string|null; job:Job|null }
 export interface InputBinding { job_id: string; artifact_id: string; version_id: string; sha256: string; size_bytes: string; projection_digest: string }
 export interface Result { response_id: string; text: string; tool_calls: { id: string; name: string; arguments: Record<string, unknown> }[]; native_usage: { input_tokens: number; output_tokens: number } | null; finish_reason: 'stop' | 'tool_calls' }
+export interface JobEventCursor { stream_id:string; after:string }
+export interface JobEvent { event_id:string; seq:string; event_type:string; attempt_id:string|null; occurred_at:string; payload_digest:string }
+export type JobHistory = {kind:'snapshot'|'reset';job:Job;job_version:string;cursor:JobEventCursor|null} |
+ {kind:'page';job_id:string;cursor:JobEventCursor;events:JobEvent[]};
+export interface JobStreamFrame { protocol_version:1; connection_generation:string; history:JobHistory }
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
+export const isJobStreamFrame=compile<JobStreamFrame>(artifacts,'JobStreamFrame');
 export const isArtifactError=compile<{code:string;message:string;request_id:string;retry_class:string}>(artifacts,'ApiError');
 const validators = {
  Funding: compile<QuoteFunding>(pricing,'QuoteFundingView'),

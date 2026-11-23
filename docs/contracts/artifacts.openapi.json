@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange private artifact API",
-    "version": "0.1.10",
+    "version": "0.1.12",
     "description": "Current user sessions and independent artifact/source content ACLs. Includes committed Worker response references. Model execution success does not imply settlement or resource cleanup. Native usage is never a billing grant."
   },
   "paths": {
@@ -1560,6 +1560,200 @@
           }
         }
       }
+    },
+    "/api/v1/owners/{owner}/jobs/{job}/events": {
+      "get": {
+        "operationId": "readOwnedJobHistory",
+        "description": "Returns an authorized snapshot, a bounded metadata-only replay page or an explicit snapshot reset. Supply stream_id and after together. Old events may have unknown attempt identity. No source content, binary payload or session credential is returned.",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "job",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "stream_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64,
+              "default": 32
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authorized Job history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authorized metadata, not execution authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/owners/{owner}/jobs/{job}/events/ws": {
+      "get": {
+        "operationId": "streamOwnedJobHistory",
+        "description": "Read-only WebSocket transport. Requires the configured user Origin and orange.job-events.v1. One text frame must be acknowledged before delivery of another. Disconnect does not cancel the underlying Job.",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "job",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "stream_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64,
+              "default": 32
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Sec-WebSocket-Protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "const": "orange.job-events.v1"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Upgraded. Server sends JobStreamFrame, client acknowledges with JobStreamAck."
+          },
+          "default": {
+            "description": "Current authorized metadata, not execution authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-orange-websocket": {
+          "protocol": "orange.job-events.v1",
+          "delivery": "JobStreamFrame",
+          "ack": "JobStreamAck",
+          "ack_timeout_ms": 5000,
+          "max_inbound_message_bytes": 2048,
+          "max_batch_bytes": 65536,
+          "max_concurrent_sockets_per_router": 64
+        }
+      }
     }
   },
   "components": {
@@ -2987,6 +3181,232 @@
           "max_amount",
           "fee_bps",
           "expires_at_unix"
+        ]
+      },
+      "JobEventCursor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stream_id",
+          "after"
+        ],
+        "properties": {
+          "stream_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "after": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          }
+        }
+      },
+      "JobDurableEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "seq",
+          "event_type",
+          "attempt_id",
+          "occurred_at",
+          "payload_digest"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "event_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "payload_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "JobEventSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "job",
+          "job_version",
+          "cursor"
+        ],
+        "properties": {
+          "kind": {
+            "const": "snapshot"
+          },
+          "job": {
+            "$ref": "#/components/schemas/JobView"
+          },
+          "job_version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobEventCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "JobEventReset": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "job",
+          "job_version",
+          "cursor"
+        ],
+        "properties": {
+          "kind": {
+            "const": "reset"
+          },
+          "job": {
+            "$ref": "#/components/schemas/JobView"
+          },
+          "job_version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobEventCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "JobEventPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "job_id",
+          "cursor",
+          "events"
+        ],
+        "properties": {
+          "kind": {
+            "const": "page"
+          },
+          "job_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/JobEventCursor"
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/JobDurableEvent"
+            }
+          }
+        }
+      },
+      "JobHistory": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/JobEventSnapshot"
+          },
+          {
+            "$ref": "#/components/schemas/JobEventReset"
+          },
+          {
+            "$ref": "#/components/schemas/JobEventPage"
+          }
+        ]
+      },
+      "JobStreamFrame": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "protocol_version": {
+            "const": 1
+          },
+          "connection_generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "history": {
+            "$ref": "#/components/schemas/JobHistory"
+          }
+        },
+        "required": [
+          "protocol_version",
+          "connection_generation",
+          "history"
+        ]
+      },
+      "JobStreamAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "ack"
+          },
+          "connection_generation": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobEventCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "connection_generation",
+          "cursor"
         ]
       }
     }
