@@ -1,4 +1,5 @@
 import {exerciseConnectorModel} from './real-model-connector.mjs';
+import {publishTestMarker} from './publish-test-marker.mjs';
 import {continueModel} from './real-continuation.mjs';
 // Entire built portal, actual platform workspace and a distinct CPU inference
 // Worker. Follow the user's explicit quote approval before any spending effect.
@@ -87,7 +88,7 @@ try{
   const originalOutput=await ctx.request.get(contentPath);
   const originalInput=await ctx.request.get(origin+'/api/v1/owners/'+f.owner+'/uploads/'+uploaded.upload_id+'/content?version_id='+encodeURIComponent(uploaded.version_id));
   if(originalOutput.status()!==200||originalInput.status()!==200)throw Error('Committed source bytes unavailable before deletion');
-  writeFileSync(f.oracle_input,await originalInput.body(),{mode:0o600});writeFileSync(f.oracle_output,await originalOutput.body(),{mode:0o600});
+  publishTestMarker(f.oracle_input,await originalInput.body());publishTestMarker(f.oracle_output,await originalOutput.body());
   const deletion=await ctx.request.delete(origin+'/api/v1/owners/'+f.owner+'/uploads/'+uploaded.upload_id,{headers:{Origin:origin,'X-CSRF-Token':session.csrf_token,'Idempotency-Key':uploaded.upload_id}});
   if(deletion.status()!==200)throw Error('Source deletion failed: '+deletion.status());
   await page.getByRole('button',{name:'刷新模型步骤'}).click();
@@ -106,7 +107,7 @@ try{
   await page.getByRole('button',{name:'获取模型报价'}).click();
   const quoted=await (await secondQuote).json();
   if(!quoted.quote_id||quoted.invocation_id===quote.invocation_id)throw Error('No independent second quote');
-  writeFileSync(f.gate_quote,quoted.quote_id,{mode:0o600,flag:'wx'});
+  publishTestMarker(f.gate_quote,quoted.quote_id);
   const until=Date.now()+20000;
   while(!existsSync(f.gate_locked)){if(Date.now()>until)throw Error('Provider control did not reach the pre-start barrier');await new Promise(ok=>setTimeout(ok,50));}
   const secondCommit=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===secondPath+'/submit');
@@ -123,7 +124,7 @@ try{
   await secondEntry.getByRole('button',{name:'确认取消'}).click();
   const sr=await stopped,closed=await sr.json();
   if(sr.status()!==200||closed.status!=='cancelled')throw Error('Cloud model cancellation not committed');
-  writeFileSync(f.gate_release,'cancelled',{mode:0o600,flag:'wx'});
+  publishTestMarker(f.gate_release,'cancelled');
   const cancelled=await (await ctx.request.get(origin+'/api/v1/owners/'+f.owner+'/jobs/'+queued.job_id)).json();
   const restored=await (await ctx.request.get(walletPath)).json();
   if(cancelled.execution_state!=='cancelled'||cancelled.settlement_state!=='settled'||cancelled.charge!=='0'||JSON.stringify(cancelWallet)!==JSON.stringify(restored))
@@ -156,7 +157,7 @@ try{
       const stale=await ctx.request.post(origin+decisionPath,{headers:headers('stale-'+decision),data:{decision:'approve',expected_version:op.version,review_digest:'0'.repeat(64)}});
       if(stale.status()!==412)throw Error('Stale proposal accepted');
       if(scenario==='expired_after_dispatch'){
-        writeFileSync(f.expiry_operation,op.operation_id,{mode:0o600,flag:'wx'});
+        publishTestMarker(f.expiry_operation,op.operation_id);
         const limit=Date.now()+20000;
         while(!existsSync(f.expiry_locked)){if(Date.now()>limit)throw Error('Uncertain-result control did not acquire its test barrier');await new Promise(ok=>setTimeout(ok,60));}
       }
