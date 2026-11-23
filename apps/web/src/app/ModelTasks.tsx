@@ -18,6 +18,7 @@ import type { ComputeSession } from '../api/compute-intent';
 const states: Record<Job['execution_state'], string> = { queued: '等待执行', running: '执行中', cancelling: '正在取消', succeeded: '已完成', failed: '执行失败', cancelled: '已取消' };
 const settlements: Record<Job['settlement_state'], string> = { pending: '结算待核对', settled: '已结算', reversed: '已冲正' };
 function failureText(error: unknown): string {
+  if (error instanceof ApiFailure && error.code === 'ARTIFACT_IN_USE') return '这份输入仍被任务或工作区引用。请先取消相关任务，核对停止状态后重试删除。';
   if(error instanceof ApiFailure && error.code==='STALE_JOB_VERSION') return '任务状态已变化。请核对刷新后的状态，再决定是否取消。';
   if (error instanceof OriginalInputRequired) return '原输入尚未上传完成，请重新输入完全相同的文本，再继续核对。';
   if (error instanceof Error && error.message === 'ORIGINAL_SUBMISSION_STILL_UNRESOLVED') return '停止意图已保留，但尚未查到原任务。请继续撤回核对，当前不会再发起提交。';

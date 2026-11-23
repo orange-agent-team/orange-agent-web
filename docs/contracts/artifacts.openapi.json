@@ -223,6 +223,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "ARTIFACT_IN_USE. Cancel active input uses and reconcile their state before retrying. The refused operation creates no deletion fact.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
