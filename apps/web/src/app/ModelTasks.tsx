@@ -9,6 +9,7 @@ import { authorityKey, type UserSession } from '../api/contracts';
 import { formatCredits } from '../api/accounts';
 import { modelInput, pathId, sha256, type Job } from '../api/compute-contracts';
 import { advanceComputeIntent, confirmComputeIntent, loadComputeIntent, newComputeIntent, saveComputeIntent, clearFinishedCreation, withdrawComputeIntent, OriginalInputRequired, type ComputeIntent, type VerifiedComputeQuote } from '../api/compute-intent';
+import ModelSource from './ModelSource';
 import TaskDocument from './TaskDocument';
 import {FundingDetails,useQuoteFunding} from './QuoteFunding';
 import {projectText,type TransferMode} from '../api/text-transfer';
@@ -185,6 +186,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
           {!intent && <div className="model-fields"><Form.Item label={accountLabel} required><select aria-label={accountLabel} value={budget} disabled={!!fixedBudget || pending || recoveryError} onChange={event => {clearPreview();setBudget(event.target.value);}}><option value="">选择预算</option>{activeBudgets.map(row => <option key={row.root_budget_id} value={row.root_budget_id}>{row.root_budget_id.slice(0, 8)} · 可用 {formatCredits(BigInt(row.limit) - BigInt(row.spent) - BigInt(row.reserved))} 积分</option>)}</select></Form.Item>
             <Form.Item label="可用模型" required><select aria-label="可用模型" value={price} disabled={pending || recoveryError} onChange={event => { clearPreview();setPrice(event.target.value); setOutput('32'); }}><option value="">选择模型节点</option>{(!prices.error ? prices.data : [])?.map(row => <option key={row.price_version} value={row.price_version}>{row.model_version} · 节点 {row.node_id.slice(0, 8)}</option>)}</select></Form.Item>
             <Form.Item label="输出计费上限" required extra={offer ? `当前模型最多 ${offer.output_limit} 单位` : undefined}><Input aria-label="输出计费上限" inputMode="numeric" value={output} maxLength={4} disabled={pending || recoveryError} onChange={event => {clearPreview();setOutput(event.target.value);}} /></Form.Item></div>}
+          {!intent && offer && <ModelSource key={scope + '/' + offer.price_version} api={api} scope={scope} offer={offer} />}
           <Form.Item label={needInput ? '重新输入原文本' : '任务文本'} required={!intent || needInput}><Input.TextArea aria-label="任务文本" value={prompt} rows={6} maxLength={16000} disabled={pending || recoveryError || Boolean(intent && !needInput)} onChange={event => {clearPreview();setPrompt(event.target.value);}} placeholder={intent ? '提示词不会写入浏览器恢复记录。' : '输入希望模型处理的文本'} /></Form.Item>
           {needsTransfer && <>
             <Form.Item label="文本处理方式"><select aria-label="文本处理方式" value={mode} disabled={pending} onChange={e=>{clearPreview();setMode(e.target.value as TransferMode);}}>

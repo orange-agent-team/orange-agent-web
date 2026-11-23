@@ -1,0 +1,239 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orange reviewed market models",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/models": {
+      "get": {
+        "operationId": "listReviewedMarketModels",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "description": "Lists currently eligible development text offers matched to licensed, pinned weights. A listing does not reserve capacity or freeze a quote. Exposure requires a configured artifact service. Other modalities have independent local and consent-qualified paths.",
+        "responses": {
+          "200": {
+            "description": "Current snapshot. Empty data means there is no matching admitted live offer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketModelList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A live user browser session is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Current content authority has been withdrawn.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The development meter is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Query parameters are not supported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "UserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-orange-user"
+      }
+    },
+    "schemas": {
+      "ReviewedTextModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "modality": {
+            "const": "text"
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "model_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "context_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_request_bytes": {
+            "const": 262144
+          },
+          "offers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/TextPriceView"
+            }
+          }
+        },
+        "required": [
+          "modality",
+          "model_version",
+          "model_sha256",
+          "repository",
+          "revision",
+          "license",
+          "context_tokens",
+          "max_request_bytes",
+          "offers"
+        ]
+      },
+      "MarketModelList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewedTextModel"
+            },
+            "maxItems": 1
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TextPriceView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "price_version",
+          "model_version",
+          "node_id",
+          "meter_profile_digest",
+          "input_price",
+          "output_price",
+          "output_limit",
+          "fee_bps"
+        ],
+        "properties": {
+          "price_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "node_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "meter_profile_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "input_price": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical decimal microcredits, maximum9223372036854775807 enforced by the checked money type."
+          },
+          "output_price": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "description": "Canonical decimal microcredits, maximum9223372036854775807 enforced by the checked money type."
+          },
+          "output_limit": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "fee_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "retry_class"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retry_class": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

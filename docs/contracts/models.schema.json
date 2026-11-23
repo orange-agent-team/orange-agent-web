@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orange:market-models:0.1.0",
+  "$defs": {
+    "ReviewedTextModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modality": {
+          "const": "text"
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "model_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "context_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_request_bytes": {
+          "const": 262144
+        },
+        "offers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/TextPriceView"
+          }
+        }
+      },
+      "required": [
+        "modality",
+        "model_version",
+        "model_sha256",
+        "repository",
+        "revision",
+        "license",
+        "context_tokens",
+        "max_request_bytes",
+        "offers"
+      ]
+    },
+    "MarketModelList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReviewedTextModel"
+          },
+          "maxItems": 1
+        }
+      },
+      "required": [
+        "data"
+      ]
+    },
+    "TextPriceView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "price_version",
+        "model_version",
+        "node_id",
+        "meter_profile_digest",
+        "input_price",
+        "output_price",
+        "output_limit",
+        "fee_bps"
+      ],
+      "properties": {
+        "price_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "meter_profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_price": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical decimal microcredits, maximum9223372036854775807 enforced by the checked money type."
+        },
+        "output_price": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,18})$",
+          "description": "Canonical decimal microcredits, maximum9223372036854775807 enforced by the checked money type."
+        },
+        "output_limit": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "fee_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    },
+    "ApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "request_id",
+        "retry_class"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "retry_class": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

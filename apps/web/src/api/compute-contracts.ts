@@ -1,5 +1,6 @@
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import artifacts from '../../../../docs/contracts/artifacts.schema.json' with { type: 'json' };
+import models from '../../../../docs/contracts/models.schema.json' with { type: 'json' };
 import pricing from '../../../../docs/contracts/pricing.schema.json' with { type: 'json' };
 export const TRANSCRIPTION_MEDIA = 'application/vnd.orange.transcription+json';
 export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
@@ -29,6 +30,11 @@ export interface TranscriptionResult {
 }
 export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain'|AudioMedia }
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
+export interface ReviewedModel {
+ modality: 'text'; model_version: string; model_sha256: string; repository: string; revision: string;
+ license: string; context_tokens: number; max_request_bytes: number; offers: Price[];
+}
+export interface MarketModelList { data: ReviewedModel[] }
 export interface QuoteRequest { request_id: string; root_budget_id: string; price_version: string; input_upload_id: string; input_version_id: string; output_limit: number }
 export interface QuoteFunding {
  quote_id:string;requester_id:string;owner_id:string;root_budget_id:string;account_kind:'personal'|'team';price_version:string;
@@ -49,11 +55,12 @@ export interface JobEvent { event_id:string; seq:string; event_type:string; atte
 export type JobHistory = {kind:'snapshot'|'reset';job:Job;job_version:string;cursor:JobEventCursor|null} |
  {kind:'page';job_id:string;cursor:JobEventCursor;events:JobEvent[]};
 export interface JobStreamFrame { protocol_version:1; connection_generation:string; history:JobHistory }
-const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing);
+const ajv = new Ajv2020({ strict: false }); ajv.addSchema(artifacts); ajv.addSchema(pricing); ajv.addSchema(models);
 const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ $ref: `${schema.$id}#/$defs/${name}` });
 export const isJobStreamFrame=compile<JobStreamFrame>(artifacts,'JobStreamFrame');
 export const isArtifactError=compile<{code:string;message:string;request_id:string;retry_class:string}>(artifacts,'ApiError');
 const validators = {
+ Models: compile<MarketModelList>(models, 'MarketModelList'),
  Funding: compile<QuoteFunding>(pricing,'QuoteFundingView'),
  AudioPrice: compile<AudioPrice>(artifacts,'TranscriptionPrice'),
  AudioQuote: compile<AudioQuote>(artifacts,'TranscriptionQuoteView'),
@@ -68,7 +75,7 @@ const validators = {
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+type Values = { Models:MarketModelList; Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['price_per_minute', 'input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');

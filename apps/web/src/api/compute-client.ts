@@ -70,6 +70,20 @@ export class ComputeClient extends UserClient {
   if(value.grant_id!==id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return value;
  }
+ async models(signal?: AbortSignal) {
+  const models = decodeCompute('Models', await this.call('/api/v1/models', {signal}));
+  for (const model of models.data) {
+   const versions = new Set<string>();
+   for (const offer of model.offers) {
+    decodeCompute('Price', offer);
+    if (offer.model_version !== model.model_version || versions.has(offer.price_version)) {
+     throw new ApiFailure(200, 'INVALID_MODEL_CATALOGUE');
+    }
+    versions.add(offer.price_version);
+   }
+  }
+  return models;
+ }
  async prices(signal?: AbortSignal) {
   const data = await this.call('/api/v1/text-prices', { signal });
   if (!Array.isArray(data) || data.length > 1000) throw new Error('INVALID_PRICE_LIST');
