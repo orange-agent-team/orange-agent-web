@@ -126,3 +126,29 @@ test('source details identify the exact current offer and clear an earlier match
   expect(state.quoteKeys).toHaveLength(0);
   expect(state.submits).toBe(0);
 });
+
+test('busy input keeps its withdrawal identity and deletes only on an explicit retry', async ({page}) => {
+  const state = await fixture(page, {balance:'0'});
+  await quote(page);
+  const keys: string[] = [];
+  await page.route('**/api/v1/owners/*/uploads/*',async route=>{
+    if(route.request().method()!=='DELETE') return route.fallback();
+    keys.push(route.request().headers()['idempotency-key']);
+    if(keys.length===1) return route.fulfill({status:409,json:{
+      code:'ARTIFACT_IN_USE',message:'fixture',request_id:'input-in-use',retry_class:'never'
+    }});
+    return route.fallback();
+  });
+  await page.getByRole('button',{name:'删除未提交输入'}).click();
+  await expect(page.getByText('这份输入仍被任务或工作区引用。请先取消相关任务，核对停止状态后重试删除。')).toBeVisible();
+  expect(state.input?.state).toBe('available');
+  await page.reload();
+  const retry = page.getByRole('button',{name:'继续撤回核对'});
+  await expect(retry).toBeVisible();
+  expect(keys).toHaveLength(1);
+  await retry.click();
+  await expect(page.getByRole('button',{name:'批准上传并获取报价',exact:true})).toBeVisible();
+  expect(keys).toEqual([state.upload!.upload_id,state.upload!.upload_id]);
+  expect(state.deletes).toBe(1);
+  expect(state.submits).toBe(0);
+});
