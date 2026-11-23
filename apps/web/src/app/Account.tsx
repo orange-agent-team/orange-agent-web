@@ -6,6 +6,7 @@ import { authorityKey, type UserSession } from '../api/contracts';
 import { formatCredits, parseCredits, type Budget } from '../api/accounts';
 import { intentKey, loadIntent, saveIntent, type BudgetIntent } from '../api/budget-intent';
 import TestCheckout from './TestCheckout';
+import PersonalAutomationKeys from './PersonalAutomationKeys';
 import ProviderIncomeHistory from './ProviderIncomeHistory';
 const api = new UserClient();
 const labels = { active: '可用', closing: '正在关闭', closed: '已关闭' };
@@ -81,6 +82,7 @@ export default function Account({ session, invalidate }: { session: UserSession;
         <Button type="primary" htmlType="submit" block loading={pending || loadingIntent} disabled={storageError || (!intent && parseCredits(amount) === undefined)}>{intent ? '继续本次创建' : '创建预算'}</Button>
       </Form>
     </Card></aside></div>
+    <PersonalAutomationKeys key={authorityKey(session)} session={session}/>
     <ProviderIncomeHistory key={authorityKey(session)} session={session}/>
     <TestCheckout key={session.user_id+session.personal_owner_id} session={session} onCredit={()=>void wallet.refetch()}/>
   </>;

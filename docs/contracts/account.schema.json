@@ -513,6 +513,138 @@
           ]
         }
       }
+    },
+    "RegisterPersonalKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "audience",
+        "scope",
+        "verifier",
+        "ttl_seconds"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f-\\u009f]*\\S)?$",
+          "description": "Trimmed, without control characters."
+        },
+        "audience": {
+          "const": "orange-personal-automation-v1"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "wallet:read",
+            "budgets:read"
+          ]
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "ttl_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 2592000
+        }
+      }
+    },
+    "PersonalKeyView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key_id",
+        "user_id",
+        "owner_id",
+        "audience",
+        "scope",
+        "label",
+        "status",
+        "created_at",
+        "expires_at"
+      ],
+      "properties": {
+        "key_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "audience": {
+          "const": "orange-personal-automation-v1"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "wallet:read",
+            "budgets:read"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f-\\u009f]*\\S)?$",
+          "description": "Trimmed, without control characters."
+        },
+        "status": {
+          "enum": [
+            "active",
+            "expired",
+            "revoked"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "PersonalKeyPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data",
+        "next_cursor"
+      ],
+      "properties": {
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/PersonalKeyView"
+          }
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   }
 }

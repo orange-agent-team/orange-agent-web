@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange personal account API",
-    "version": "0.1.2",
-    "description": "Owner comes exclusively from the current user session. Budget creation does not add credits or reserve funds. Pending earned credits are not spendable. Team budget governance and real payments are separate capabilities."
+    "version": "0.2.0",
+    "description": "Owner comes exclusively from the current user session. Budget creation does not add credits or reserve funds. Pending earned credits are not spendable. Team budget governance and real payments are separate capabilities. Scoped automation reads derive their personal owner from the current credential."
   },
   "paths": {
     "/api/v1/account/wallet": {
@@ -545,6 +545,284 @@
           }
         }
       }
+    },
+    "/api/v1/account/api-keys": {
+      "get": {
+        "operationId": "listPersonalAutomationKeys",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadata for this user, ordered by key identifier.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalKeyPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/api-keys/{key}": {
+      "put": {
+        "operationId": "registerPersonalAutomationKey",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "description": "Equal to the key path parameter for this operation."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original registration metadata, including its current status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalKeyView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPersonalKey"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "withdrawPersonalAutomationKey",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "description": "Equal to the key path parameter for this operation."
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "This identity cannot be subsequently registered or used by the caller."
+          }
+        }
+      }
+    },
+    "/api/v1/automation/account/wallet": {
+      "get": {
+        "operationId": "readAutomationWallet",
+        "security": [
+          {
+            "PersonalAutomationKey": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Requires wallet:read. Browser cookies are refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automation/account/budgets": {
+      "get": {
+        "operationId": "readAutomationBudgets",
+        "security": [
+          {
+            "PersonalAutomationKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requires budgets:read. Browser cookies are refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalBudgetList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -553,6 +831,11 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "__Host-orange-user"
+      },
+      "PersonalAutomationKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "oa1.<canonical-uuidv4>.<64-lowercase-hex>"
       }
     },
     "schemas": {
@@ -1060,6 +1343,138 @@
                 "minLength": 1,
                 "maxLength": 128,
                 "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RegisterPersonalKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "audience",
+          "scope",
+          "verifier",
+          "ttl_seconds"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f-\\u009f]*\\S)?$",
+            "description": "Trimmed, without control characters."
+          },
+          "audience": {
+            "const": "orange-personal-automation-v1"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "wallet:read",
+              "budgets:read"
+            ]
+          },
+          "verifier": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 2592000
+          }
+        }
+      },
+      "PersonalKeyView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key_id",
+          "user_id",
+          "owner_id",
+          "audience",
+          "scope",
+          "label",
+          "status",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "audience": {
+            "const": "orange-personal-automation-v1"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "wallet:read",
+              "budgets:read"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f-\\u009f]*\\S)?$",
+            "description": "Trimmed, without control characters."
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PersonalKeyPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalKeyView"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
               },
               {
                 "type": "null"
