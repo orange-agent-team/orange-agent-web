@@ -82,7 +82,7 @@ export default function Account({ session, invalidate }: { session: UserSession;
         <Button type="primary" htmlType="submit" block loading={pending || loadingIntent} disabled={storageError || (!intent && parseCredits(amount) === undefined)}>{intent ? '继续本次创建' : '创建预算'}</Button>
       </Form>
     </Card></aside></div>
-    <PersonalAutomationKeys key={authorityKey(session)} session={session}/>
+    <PersonalAutomationKeys key={"api-keys:"+authorityKey(session)} session={session}/>
     <ProviderIncomeHistory key={authorityKey(session)} session={session}/>
     <TestCheckout key={session.user_id+session.personal_owner_id} session={session} onCredit={()=>void wallet.refetch()}/>
   </>;
