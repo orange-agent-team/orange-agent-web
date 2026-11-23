@@ -95,3 +95,54 @@ it('binds funding to the original quote, actor, scope, ceiling and complete budg
     await expect(read(changed)).rejects.toThrow();
   }
 });
+
+describe('conditional Job cancellation',()=>{
+ function storage(): Storage {
+  const data=new Map<string,string>();
+  return {get length(){return data.size;},getItem:k=>data.get(k)??null,setItem:(k,v)=>{data.set(k,v);},removeItem:k=>{data.delete(k);},
+          clear:()=>data.clear(),key:i=>[...data.keys()][i]??null};
+ }
+ const seen=(options?: RequestInit)=>new Headers(options?.headers);
+ it('reads a fixed-width-independent decimal revision and refuses malformed server metadata',async()=>{
+  const make=(revision?:string)=>new ComputeClient(async()=>{
+   const reply=json(job); if(revision!==undefined)reply.headers.set('x-orange-job-version',revision);return reply;
+  });
+  expect((await make('9007199254740993').jobSnapshot(session,'job')).revision).toBe('9007199254740993');
+  expect((await make().jobSnapshot(session,'job')).revision).toBeUndefined();
+  for(const invalid of ['0','01','1, 2','9223372036854775808']){
+   await expect(make(invalid).jobSnapshot(session,'job')).rejects.toMatchObject({code:'INVALID_JOB_REVISION'});
+  }
+ });
+ it('keeps the first observed version and key after a lost response and a reload',async()=>{
+  const local=storage();
+  let key:string|null=null;
+  const first=new ComputeClient(async(_path,init)=>{
+   const h=seen(init);expect(h.get('x-orange-expected-job-version')).toBe('4');key=h.get('idempotency-key');throw new Error('response lost');
+  });
+  await expect(first.cancelObserved(session,'job','4',local)).rejects.toMatchObject({status:0});
+  const restored=new ComputeClient(async(_path,init)=>{
+   const h=seen(init);expect(h.get('x-orange-expected-job-version')).toBe('4');expect(h.get('idempotency-key')).toBe(key);
+   return json({...job,execution_state:'cancelled',settlement_state:'settled',charge:'0'});
+  });
+  expect((await restored.cancelObserved(session,'job','7',local)).execution_state).toBe('cancelled');
+  expect(local.length).toBe(0);
+ });
+ it('clears only a definitely stale command; rechecking status alone sends no new cancellation',async()=>{
+  const local=storage();const keys:string[]=[];
+  const api=new ComputeClient(async(_path,init)=>{
+   const h=seen(init);keys.push(h.get('idempotency-key')!);
+   return keys.length===1?json({code:'STALE_JOB_VERSION',message:'stale',request_id:'fixture',retry_class:'query_original'},412):json(job);
+  });
+  await expect(api.cancelObserved(session,'job','2',local)).rejects.toMatchObject({status:412,code:'STALE_JOB_VERSION'});
+  expect(local.length).toBe(0);expect(keys).toHaveLength(1);
+  await api.cancelObserved(session,'job','3',local);expect(keys[1]).not.toBe(keys[0]);
+ });
+ it('reuses a pre-upgrade receipt without changing its original precondition or raw key',async()=>{
+  const local=storage(),oldJob={...job,job_id:'job:legacy'};
+  local.setItem('orange-cancel-v1:'+JSON.stringify([session.user_id,session.personal_owner_id,oldJob.job_id]),'old:key');
+  const api=new ComputeClient(async(_path,init)=>{
+   const h=seen(init);expect(h.get('idempotency-key')).toBe('old:key');expect(h.has('x-orange-expected-job-version')).toBe(false);return json(oldJob);
+  });
+  await api.cancelObserved(session,oldJob.job_id,'2',local);expect(local.length).toBe(0);
+ });
+});

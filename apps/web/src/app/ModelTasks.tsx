@@ -16,6 +16,7 @@ import type { ComputeSession } from '../api/compute-intent';
 const states: Record<Job['execution_state'], string> = { queued: '等待执行', running: '执行中', cancelling: '正在取消', succeeded: '已完成', failed: '执行失败', cancelled: '已取消' };
 const settlements: Record<Job['settlement_state'], string> = { pending: '结算待核对', settled: '已结算', reversed: '已冲正' };
 function failureText(error: unknown): string {
+  if(error instanceof ApiFailure && error.code==='STALE_JOB_VERSION') return '任务状态已变化。请核对刷新后的状态，再决定是否取消。';
   if (error instanceof OriginalInputRequired) return '原输入尚未上传完成，请重新输入完全相同的文本，再继续核对。';
   if (error instanceof Error && error.message === 'ORIGINAL_SUBMISSION_STILL_UNRESOLVED') return '停止意图已保留，但尚未查到原任务。请继续撤回核对，当前不会再发起提交。';
   if (error instanceof ContentUnavailable) return '当前无法读取此结果，输入可能已删除或内容权限已经变化。';
@@ -64,8 +65,8 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const prices = useQuery({ queryKey: [scope, 'text-prices'], queryFn: ({ signal }) => api.prices(signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const budgets = useQuery({ queryKey: [scope, 'model-budgets'], enabled: !team, queryFn: ({ signal }) => api.budgets(session, undefined, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], enabled: !team, queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
-  const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.job(session, selected!, signal), enabled: !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
-  const result = useQuery({ queryKey: [scope, 'job-result', selected], enabled: !team && current.data?.execution_state === 'succeeded' && !current.error,
+  const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.jobSnapshot(session, selected!, signal), enabled: !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
+  const result = useQuery({ queryKey: [scope, 'job-result', selected], enabled: !team && current.data?.job.execution_state === 'succeeded' && !current.error,
     queryFn: async ({ signal }) => api.resultDocument(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
   const offer = !prices.error ? prices.data?.find(row => row.price_version === price) : undefined;
   const activeBudgets = teamBudget ? [teamBudget] : !budgets.error ? budgets.data?.data.filter(row => row.status === 'active') ?? [] : [];
@@ -100,7 +101,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
     if(team) void client.invalidateQueries({queryKey:['team-model-budget',session.session_id,team,fixedBudget]});
     else void budgets.refetch();
   };
-  const refresh = () => { if(!team) void jobs.refetch(); void prices.refetch(); refreshBudget(); if(prepared)void funding.refetch(); if (!team && selected) { void current.refetch(); if (current.data?.execution_state === 'succeeded') void result.refetch(); } };
+  const refresh = () => { if(!team) void jobs.refetch(); void prices.refetch(); refreshBudget(); if(prepared)void funding.refetch(); if (!team && selected) { void current.refetch(); if (current.data?.job.execution_state === 'succeeded') void result.refetch(); } };
   const reconcile = async (approve = false) => {
     if (busy.current || initializing || recoveryError || (approve && !affordable)) return;
     busy.current = true; setPending(true); setFailure(undefined);
@@ -135,15 +136,15 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
     if (!selected || busy.current) return;
     const job = selected; busy.current = true; setPending(true); setFailure(undefined);
     try {
-      const storageKey = `orange-cancel-v1:${JSON.stringify([session.user_id, api.owner(session), job])}`;
-      let key = sessionStorage.getItem(storageKey); if (key === null) { key = crypto.randomUUID(); sessionStorage.setItem(storageKey, key); } pathId(key);
-      const value = await api.cancel(session, job, key);
+      if(!current.data || current.data.job.job_id!==job) return;
+      const value = await api.cancelObserved(session,job,current.data.revision);
       if (!alive.current) return;
-      client.setQueryData([scope, 'job', job], value); sessionStorage.removeItem(storageKey);
+      client.setQueryData([scope, 'job', job], {job:value,revision:undefined});
+      void current.refetch();
       void client.invalidateQueries({ queryKey: [scope, 'jobs'] }); refreshBudget();
     } catch (error) {
       if (!alive.current) return;
-      setFailure(error); if (error instanceof ApiFailure && [401, 403].includes(error.status)) invalidate();
+      setFailure(error); if(error instanceof ApiFailure && error.code==='STALE_JOB_VERSION') void current.refetch(); if (error instanceof ApiFailure && [401, 403].includes(error.status)) invalidate();
     } finally { busy.current = false; if (alive.current) setPending(false); }
   };
   const withdraw = async () => {
@@ -166,7 +167,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
     try { clearFinishedCreation(sessionStorage, session, intent); setIntent(null); setPrepared(null); resetPrivacy(); setNeedInput(false); inputBytes.current = undefined; setFailure(undefined); }
     catch (error) { setFailure(error); }
   };
-  const visibleJob = !current.error ? current.data : undefined;
+  const visibleJob = !current.error ? current.data?.job : undefined;
   const verifiedDocument = !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
   return <>
     <div className="page-heading"><div><h1>{team ? '团队文本任务' : '模型任务'}</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><div><Link to={team ? '/organizations/'+pathId(team)+'/tasks' : '/tasks/audio'}>{team ? '我的团队任务' : '音频预检'}</Link> <Button onClick={refresh}>刷新任务</Button></div></div>

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange private artifact API",
-    "version": "0.1.9",
+    "version": "0.1.10",
     "description": "Current user sessions and independent artifact/source content ACLs. Includes committed Worker response references. Model execution success does not imply settlement or resource cleanup. Native usage is never a billing grant."
   },
   "paths": {
@@ -603,6 +603,17 @@
                   "$ref": "#/components/schemas/JobView"
                 }
               }
+            },
+            "headers": {
+              "x-orange-job-version": {
+                "description": "Revision of the authorized status view in this response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,18}$",
+                  "maxLength": 19,
+                  "description": "Positive signed 64-bit decimal revision."
+                }
+              }
             }
           },
           "default": {
@@ -822,6 +833,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-orange-expected-job-version",
+            "in": "header",
+            "required": false,
+            "description": "Exactly one revision from a previously authorized GET. Omit for legacy unconditional cancellation. Reuse the original revision on a retry with the same idempotency key.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,18}$",
+              "maxLength": 19,
+              "description": "Positive signed 64-bit decimal revision."
+            }
           }
         ],
         "responses": {
@@ -837,6 +860,16 @@
           },
           "default": {
             "description": "Current authorized metadata, not execution authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Stale revision; no cancellation or new ledger posting occurred. Fetch current status before deciding on a new action.",
             "content": {
               "application/json": {
                 "schema": {

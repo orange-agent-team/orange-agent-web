@@ -2,6 +2,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Alert,Button,Card,Space,Spin,Typography} from 'antd';
 import {Link,useParams,useSearchParams} from 'react-router';
+import {ApiFailure} from '../api/client';
 import {ComputeClient} from '../api/compute-client';
 import {pathId} from '../api/compute-contracts';
 import {TeamClient} from '../api/team';
@@ -37,22 +38,22 @@ function OwnedJobs({session,org}:{session:UserSession;org:string}){
   const allowed=member.isSuccess&&['owner','admin','member'].includes(member.data.role);
   const key=['team-jobs',session.session_id,org];
   const jobs=useQuery({queryKey:[...key,'list',after],enabled:allowed,queryFn:({signal})=>api.jobs(session,after,signal),refetchInterval:5000,retry:false});
-  const job=useQuery({queryKey:[...key,'job',selected],enabled:allowed&&!!selected,queryFn:({signal})=>api.job(session,selected!,signal),refetchInterval:5000,retry:false});
-  const result=useQuery({queryKey:[...key,'document',selected],enabled:allowed&&visible&&!!selected&&job.isSuccess&&job.data.execution_state==='succeeded',
+  const job=useQuery({queryKey:[...key,'job',selected],enabled:allowed&&!!selected,queryFn:({signal})=>api.jobSnapshot(session,selected!,signal),refetchInterval:5000,retry:false});
+  const result=useQuery({queryKey:[...key,'document',selected],enabled:allowed&&visible&&!!selected&&job.isSuccess&&job.data.job.execution_state==='succeeded',
     queryFn:async({signal})=>api.resultDocument(session,await api.result(session,selected!,signal),signal),refetchInterval:5000,refetchIntervalInBackground:false,retry:false});
   useEffect(()=>{function visibility(){setVisible(!document.hidden);if(document.hidden){void client.cancelQueries({queryKey:['team-jobs',session.session_id,org,'document']});client.removeQueries({queryKey:['team-jobs',session.session_id,org,'document']});}}
     document.addEventListener('visibilitychange',visibility);return ()=>document.removeEventListener('visibilitychange',visibility);},[session.session_id,org,client]);
-  async function cancel(){if(!selected||busy)return;setBusy(true);setError('');try{await api.cancel(session,selected,selected);await client.invalidateQueries({queryKey:key});}
-    catch{setError('取消结果待核对，请刷新原任务。');}finally{setBusy(false);}}
+  async function cancel(){if(!selected||busy||job.data?.job.job_id!==selected)return;setBusy(true);setError('');try{await api.cancelObserved(session,selected,job.data.revision);await client.invalidateQueries({queryKey:key});}
+    catch(reason){if(reason instanceof ApiFailure && reason.code==='STALE_JOB_VERSION'){setError('任务状态已变化，请核对刷新后的状态再决定是否取消。');void job.refetch();}else setError('取消结果待核对，请刷新原任务。');}finally{setBusy(false);}}
   if(member.isPending)return <Spin/>;
   if(!allowed)return <Alert type="warning" title="当前身份无法读取团队任务"/>;
   return <><p><Link to={'/organizations/'+pathId(org)}>{member.data!.name}</Link></p><h1>我的团队任务</h1>
     <Button onClick={()=>void client.invalidateQueries({queryKey:key})}>刷新团队任务</Button>
     {jobs.isError?<Alert type="warning" title="当前无法读取任务列表"/>:jobs.data?.data.map(j=><p key={j.job_id}><Button onClick={()=>setParams({job:j.job_id})}>{j.job_id}</Button> · {execution[j.execution_state]}</p>)}
     <Space>{pages.length>0&&<Button onClick={()=>setPages(pages.slice(0,-1))}>上页任务</Button>}{jobs.data?.next_cursor&&<Button onClick={()=>setPages([...pages,jobs.data!.next_cursor!])}>下页任务</Button>}</Space>
-    {selected&&<Card title="团队任务结果">{job.isError?<Alert type="warning" title="任务暂不可读"/>:job.data&&<><p><Typography.Text copyable>{job.data.job_id}</Typography.Text> · {execution[job.data.execution_state]}</p>
-      <p>原预留 {formatCredits(job.data.reserved)} 积分{job.data.charge!==null?' · 已记费用 '+formatCredits(job.data.charge)+' 积分':''}</p>
-      {['queued','running'].includes(job.data.execution_state)&&<Button disabled={busy} onClick={()=>void cancel()}>取消团队任务</Button>}
+    {selected&&<Card title="团队任务结果">{job.isError?<Alert type="warning" title="任务暂不可读"/>:job.data&&<><p><Typography.Text copyable>{job.data.job.job_id}</Typography.Text> · {execution[job.data.job.execution_state]}</p>
+      <p>原预留 {formatCredits(job.data.job.reserved)} 积分{job.data.job.charge!==null?' · 已记费用 '+formatCredits(job.data.job.charge)+' 积分':''}</p>
+      {['queued','running'].includes(job.data.job.execution_state)&&<Button disabled={busy} onClick={()=>void cancel()}>取消团队任务</Button>}
       {result.error&&<Alert type="warning" title="结果暂不可读"/>}{visible&&!result.isFetching&&!result.error&&result.data&&<TaskDocument document={result.data}/>}
     </>}</Card>}{error&&<Alert type="warning" title={error}/>}</>;
 }

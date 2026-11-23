@@ -6,6 +6,11 @@ export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
 const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audio/flac':'flac', 'audio/mpeg':'mp3', 'audio/ogg':'ogg', 'audio/mp4':'mov' };
 
+function validatedVersion(value:string):string{
+ if(!/^[1-9][0-9]{0,18}$/.test(value) || BigInt(value)>9223372036854775807n) throw new ApiFailure(0,'INVALID_JOB_REVISION');
+ return value;
+}
+
 export class ComputeClient extends UserClient {
  constructor(fetcher?:typeof fetch,private readonly selectedOwner?:string){super(fetcher);if(selectedOwner!==undefined)pathId(selectedOwner);}
  owner(session:UserSession){return this.selectedOwner??session.personal_owner_id;}
@@ -148,18 +153,65 @@ export class ComputeClient extends UserClient {
   const result = decodeCompute('JobLookup',value);
   if (result.owner_id !== this.owner(session) || result.user_id !== session.user_id || result.job.invocation_id !== invocation) throw new ApiFailure(403,'ACTOR_MISMATCH'); return result;
  }
- async job(session: UserSession, id: string, signal?: AbortSignal) {
-  const job = decodeCompute('Job',await this.call(`${this.base(session)}/jobs/${pathId(id)}`,{ signal }));
-  if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
+ async jobSnapshot(session: UserSession, id: string, signal?: AbortSignal) {
+  let revision: string | undefined;
+  const body=await this.call(`${this.base(session)}/jobs/${pathId(id)}`,{signal},200,15000,headers=>{
+   const value=headers.get('x-orange-job-version');
+   if(value!==null) revision=validatedVersion(value);
+  });
+  const job=decodeCompute('Job',body);
+  if(job.job_id!==id) throw new ApiFailure(403,'ACTOR_MISMATCH');
+  return {job,revision};
+ }
+ async job(session:UserSession,id:string,signal?:AbortSignal){
+  return (await this.jobSnapshot(session,id,signal)).job;
  }
  async withdraw(session:UserSession,key:string,request:Submission){
   decodeCompute(request.purpose==='transcription'?'AudioSubmission':'Submission',request);
   const value=decodeCompute('Withdrawal',await this.call(`${this.base(session)}/invocations/${pathId(request.invocation_id)}/withdraw`,{method:'POST',headers:write(session,key),body:JSON.stringify(request)}));
   if(value.owner_id!==this.owner(session)||value.user_id!==session.user_id||value.invocation_id!==request.invocation_id||value.quote_id!==request.quote_id||(value.job&&(value.job.invocation_id!==request.invocation_id||value.job.root_budget_id!==request.root_budget_id)))throw new ApiFailure(403,'ACTOR_MISMATCH');return value;
  }
- async cancel(session: UserSession, id: string, key: string) {
-  const job = decodeCompute('Job',await this.call(`${this.base(session)}/jobs/${pathId(id)}/cancel`,{ method: 'POST', headers: write(session,key), body: '{}' }));
+ async cancel(session: UserSession, id: string, key: string, revision?: string) {
+  const headers=new Headers(write(session,key));
+  if(revision!==undefined) headers.set('x-orange-expected-job-version',validatedVersion(revision));
+  const job = decodeCompute('Job',await this.call(`${this.base(session)}/jobs/${pathId(id)}/cancel`,{ method: 'POST', headers, body: '{}' }));
   if (job.job_id !== id) throw new ApiFailure(403,'ACTOR_MISMATCH'); return job;
+ }
+ async cancelObserved(session:UserSession,id:string,revision:string|undefined,storage:Storage=sessionStorage) {
+  pathId(id);
+  const storageKey='orange-cancel-v1:'+JSON.stringify([session.user_id,this.owner(session),id]);
+  let serialized=storage.getItem(storageKey);
+  let key:string;
+  if(serialized===null){
+   key=crypto.randomUUID();
+   if(revision!==undefined) validatedVersion(revision);
+   serialized=JSON.stringify({v:2,key,revision:revision??null});
+   storage.setItem(storageKey,serialized);
+  }else if(serialized.startsWith('{')){
+   let data;
+   try{data=JSON.parse(serialized);}catch{throw new ApiFailure(0,'INVALID_CANCEL_RECEIPT');}
+   if(!data || Array.isArray(data) || typeof data!=='object' || Object.keys(data).sort().join(',')!=='key,revision,v' ||
+      data.v!==2 || typeof data.key!=='string' || !(data.revision===null||typeof data.revision==='string')) {
+    throw new ApiFailure(0,'INVALID_CANCEL_RECEIPT');
+   }
+   pathId(data.key);
+   key=data.key;
+   revision=data.revision===null?undefined:validatedVersion(data.revision);
+  }else{
+   // Earlier Web releases stored only the raw idempotency key.
+   pathId(serialized);
+   key=serialized;
+   revision=undefined;
+  }
+  const clear=()=>{if(storage.getItem(storageKey)===serialized) storage.removeItem(storageKey);};
+  try{
+   const job=await this.cancel(session,id,key,revision);
+   clear();
+   return job;
+  }catch(error){
+   if(error instanceof ApiFailure && error.status===412 && error.code==='STALE_JOB_VERSION') clear();
+   throw error;
+  }
  }
  async result(session: UserSession, id: string, signal?: AbortSignal) {
   let value: unknown;

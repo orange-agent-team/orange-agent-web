@@ -9,7 +9,7 @@ export class UserClient {
     try{const error=decode('Error',body);return new ApiFailure(status,error.code,error.request_id);}
     catch{return new ApiFailure(status,'REQUEST_REJECTED');}
   }
-  protected async call(path: string, init: RequestInit = {}, expectedStatus = 200, timeoutMs = 15000): Promise<unknown> {
+  protected async call(path: string, init: RequestInit = {}, expectedStatus = 200, timeoutMs = 15000, observeHeaders?: (headers: Headers) => void): Promise<unknown> {
     if (!path.startsWith('/api/v1/') || path.includes('://') || path.includes('\\')) throw new Error('INVALID_PATH');
     const deadline = new AbortController();
     const timer = setTimeout(() => deadline.abort(), timeoutMs);
@@ -26,6 +26,7 @@ export class UserClient {
       let body: unknown;
       try { body = await response.json(); } catch (error) { if (init.signal?.aborted) throw error; throw new ApiFailure(response.status, 'INVALID_RESPONSE'); }
       if (!response.ok) throw this.rejection(response.status,body);
+      observeHeaders?.(response.headers);
       return body;
     } finally { clearTimeout(timer); init.signal?.removeEventListener('abort', cancel); }
   }
