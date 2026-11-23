@@ -1645,6 +1645,103 @@
         "connection_generation",
         "cursor"
       ]
+    },
+    "ArtifactRetentionView": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "staging",
+            "published",
+            "last_reference_released",
+            "response_commit",
+            "migration_grace",
+            "active_reference",
+            "deleted"
+          ]
+        },
+        "anchor_unix": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "due_unix": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,18})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "protected_by_reference": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "version_id",
+        "basis",
+        "anchor_unix",
+        "due_unix",
+        "protected_by_reference"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "enum": [
+                  "active_reference",
+                  "deleted"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "anchor_unix": {
+                "type": "null"
+              },
+              "due_unix": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "anchor_unix": {
+                "type": "string"
+              },
+              "due_unix": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

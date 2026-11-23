@@ -238,8 +238,19 @@ export class ComputeClient extends UserClient {
   if(result.finish_reason!=='stop'||result.tool_calls.length)throw new Error('UNREQUESTED_MODEL_TOOL');
   return result.text;
  }
+ async retention(session:UserSession,artifact:Artifact,signal?:AbortSignal) {
+  if(artifact.owner_id!==this.owner(session))throw new ApiFailure(403,'ACTOR_MISMATCH');
+  const value=decodeCompute('Retention',await this.call(this.base(session)+'/uploads/'+pathId(artifact.upload_id)+'/retention',{signal}));
+  if(value.artifact_id!==artifact.artifact_id || value.version_id!==artifact.version_id)throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+  if(value.anchor_unix!==null && value.due_unix!==null){
+   const span=value.basis==='staging'?3600n:86400n;
+   if(BigInt(value.due_unix)-BigInt(value.anchor_unix)!==span || BigInt(value.due_unix)>253402300799n)throw new ApiFailure(200,'INVALID_RETENTION_CLOCK');
+  }
+  if(value.basis==='active_reference'&&!value.protected_by_reference)throw new ApiFailure(200,'INVALID_RETENTION_CLOCK');
+  return value;
+ }
  async resultDocument(session:UserSession,artifact:Artifact,signal?:AbortSignal){
-  if(artifact.media_type!==TRANSCRIPTION_MEDIA)return {kind:'text' as const,text:await this.resultText(session,artifact,signal)};
+  if(artifact.media_type!==TRANSCRIPTION_MEDIA)return {kind:'text' as const,artifact,text:await this.resultText(session,artifact,signal)};
   const result=decodeCompute('TranscriptionResult',await this.resultJson(session,artifact,TRANSCRIPTION_MEDIA,2097152n,signal));
   const measurement=result.measurement;
   if(measurement.duration_ms.length>6||measurement.source_samples.length>9||measurement.normalized_samples.length>7)throw new Error('INVALID_TRANSCRIPT');
@@ -252,7 +263,7 @@ export class ComputeClient extends UserClient {
    last=segment.end_ms;
   }
   if(!result.text.trim()||result.segments.map(s=>s.text).join('').trim()!==result.text)throw new Error('INVALID_TRANSCRIPT_TEXT');
-  return {kind:'transcription' as const,text:result.text,transcript:result};
+  return {kind:'transcription' as const,artifact,text:result.text,transcript:result};
  }
  private async resultJson(session:UserSession,artifact:Artifact,media:string,max:bigint,external?:AbortSignal):Promise<unknown>{
   this.ownedArtifact(session,artifact);

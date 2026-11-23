@@ -6,6 +6,11 @@ export const TRANSCRIPTION_MEDIA = 'application/vnd.orange.transcription+json';
 export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
 export interface Artifact { upload_id: string; artifact_id: string; version_id: string; owner_id: string; sha256: string; size_bytes: string; media_type: string; state: 'staging' | 'available' | 'deleted' }
 export type AudioMedia = 'audio/wav' | 'audio/flac' | 'audio/mpeg' | 'audio/ogg' | 'audio/mp4';
+export interface ArtifactRetention {
+ artifact_id: string; version_id: string;
+ basis: 'staging'|'published'|'last_reference_released'|'response_commit'|'migration_grace'|'active_reference'|'deleted';
+ anchor_unix: string|null; due_unix: string|null; protected_by_reference: boolean;
+}
 export interface AudioMeasurement {
  artifact_id: string; version_id: string; audio_sha256: string; model_version: string; preprocessing: string;
  format: string; codec: string; source_sample_rate: number; source_samples: string; normalized_samples: string;
@@ -60,6 +65,7 @@ const compile = <T,>(schema: { $id: string }, name: string) => ajv.compile<T>({ 
 export const isJobStreamFrame=compile<JobStreamFrame>(artifacts,'JobStreamFrame');
 export const isArtifactError=compile<{code:string;message:string;request_id:string;retry_class:string}>(artifacts,'ApiError');
 const validators = {
+ Retention: compile<ArtifactRetention>(artifacts,'ArtifactRetentionView'),
  Models: compile<MarketModelList>(models, 'MarketModelList'),
  Funding: compile<QuoteFunding>(pricing,'QuoteFundingView'),
  AudioPrice: compile<AudioPrice>(artifacts,'TranscriptionPrice'),
@@ -75,7 +81,7 @@ const validators = {
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { Models:MarketModelList; Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+type Values = { Retention:ArtifactRetention; Models:MarketModelList; Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['price_per_minute', 'input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');

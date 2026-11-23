@@ -10,6 +10,7 @@ import { formatCredits } from '../api/accounts';
 import { modelInput, pathId, sha256, type Job } from '../api/compute-contracts';
 import { advanceComputeIntent, confirmComputeIntent, loadComputeIntent, newComputeIntent, saveComputeIntent, clearFinishedCreation, withdrawComputeIntent, OriginalInputRequired, type ComputeIntent, type VerifiedComputeQuote } from '../api/compute-intent';
 import ModelSource from './ModelSource';
+import ArtifactRetentionDetails from './ArtifactRetentionDetails';
 import TaskDocument from './TaskDocument';
 import {FundingDetails,useQuoteFunding} from './QuoteFunding';
 import {projectText,type TransferMode} from '../api/text-transfer';
@@ -182,6 +183,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
         {(prices.error || budgets.error) && <Alert type="warning" showIcon title="暂时无法读取可用模型或预算" />}
         {!intent && !prices.error && !prices.isPending && prices.data?.length === 0 && <Empty description="暂无可用模型节点" />}
         {!intent && !budgets.error && !budgets.isPending && activeBudgets.length === 0 && <p>先在<Link to="/account">积分与预算</Link>页面创建个人预算。</p>}
+        {intent?.artifact && <ArtifactRetentionDetails key={intent.artifact.version_id} api={api} session={session} artifact={intent.artifact} label="输入保留期限" />}
         {intent && <Alert type="info" showIcon title="保留原请求编号" description="继续会先只读查找原任务，恢复过程不会自动换键或重新运行模型。" />}
         <Form layout="vertical" onFinish={() => { if(!needsTransfer)void reconcile(); }}>
           {!intent && <div className="model-fields"><Form.Item label={accountLabel} required><select aria-label={accountLabel} value={budget} disabled={!!fixedBudget || pending || recoveryError} onChange={event => {clearPreview();setBudget(event.target.value);}}><option value="">选择预算</option>{activeBudgets.map(row => <option key={row.root_budget_id} value={row.root_budget_id}>{row.root_budget_id.slice(0, 8)} · 可用 {formatCredits(BigInt(row.limit) - BigInt(row.spent) - BigInt(row.reserved))} 积分</option>)}</select></Form.Item>
@@ -219,7 +221,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
           {visibleJob.execution_state === 'cancelling' && <p>取消请求已接收，执行终止和积分释放仍待确认。</p>}
           {result.error && <Alert type="warning" showIcon title="结果暂不可读" description={failureText(result.error)} />}
           {result.isFetching && <Spin aria-label="正在核对结果权限" />}
-          {verifiedDocument && <TaskDocument document={verifiedDocument}/>}
+          {verifiedDocument && <TaskDocument api={api} session={session} document={verifiedDocument}/>}
         </>}
       </Card>}
     </section>{!team && <aside><Card><h2>我的任务</h2>{jobs.error ? <Alert type="warning" title="任务列表暂不可用" /> : jobs.isPending ? <Spin /> : jobs.data && <>

@@ -54,6 +54,6 @@ function OwnedJobs({session,org}:{session:UserSession;org:string}){
     {selected&&<Card title="团队任务结果">{job.isError?<Alert type="warning" title="任务暂不可读"/>:job.data&&<><p><Typography.Text copyable>{job.data.job.job_id}</Typography.Text> · {execution[job.data.job.execution_state]}</p>
       <p>原预留 {formatCredits(job.data.job.reserved)} 积分{job.data.job.charge!==null?' · 已记费用 '+formatCredits(job.data.job.charge)+' 积分':''}</p>
       {['queued','running'].includes(job.data.job.execution_state)&&<Button disabled={busy} onClick={()=>void cancel()}>取消团队任务</Button>}
-      {result.error&&<Alert type="warning" title="结果暂不可读"/>}{jobEvents.visible&&job.data.job.execution_state==='succeeded'&&!result.isFetching&&!result.error&&result.data&&<TaskDocument document={result.data}/>}
+      {result.error&&<Alert type="warning" title="结果暂不可读"/>}{jobEvents.visible&&job.data.job.execution_state==='succeeded'&&!result.isFetching&&!result.error&&result.data&&<TaskDocument api={api} session={session} document={result.data}/>}
     </>}</Card>}{error&&<Alert type="warning" title={error}/>}</>;
 }
