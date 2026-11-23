@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {Alert,Button,Card,Input,Space} from 'antd';
 import {authorityKey,type UserSession} from '../api/contracts';
-import {KeyClient,generateKey,validKeyId,type LocalKey,type ReadScope} from '../api/personal-keys';
+import {KeyClient,generateKey,validKeyId,type LocalKey,type ReadScope,type KeyDetails} from '../api/personal-keys';
 
 const client=new KeyClient();
 const purposes={'wallet:read':'读取个人钱包','budgets:read':'读取个人预算'};
@@ -30,6 +30,7 @@ function KeyManager({session}:{session:UserSession}){
   const [label,setLabel]=useState('');
   const [scope,setScope]=useState<ReadScope>('wallet:read');
   const [days,setDays]=useState(7);
+  const [previous,setPrevious]=useState<KeyDetails>();
   const [local,setLocal]=useState<LocalKey>();
   const [revealed,setRevealed]=useState(false);
   const [pending,setPending]=useState<string>();
@@ -49,18 +50,18 @@ function KeyManager({session}:{session:UserSession}){
   },[storageKey]);
   function forget(){
     sessionStorage.removeItem(storageKey);
-    setLocal(undefined);setPending(undefined);setRevealed(false);setIssue('');
+    setPrevious(undefined);setLocal(undefined);setPending(undefined);setRevealed(false);setIssue('');
   }
   async function register(){
     if(lock.current || !visible() || !storageOK || (pending && !local))return;
     lock.current=true;setBusy(true);setIssue('');
     try{
-      const intent=local??await generateKey(label.trim(),scope,days*86400);
+      const intent=local??await generateKey(label.trim(),previous?.scope??scope,days*86400,previous?.key_id);
       if(!live.current || !visible())return;
       // A tab may lose the reply. Only the withdrawal ID survives leaving the view.
       sessionStorage.setItem(storageKey,intent.id);
       setLocal(intent);setPending(intent.id);
-      const receipt=await client.register(session,intent.id,intent.registration);
+      const receipt=await client.register(session,intent.id,intent.registration,intent.previous);
       if(!live.current || !visible())return;
       if(receipt.status==='active'){setRevealed(true);}
       else {forget();setIssue('此编号已失效。请新建密钥。');}
@@ -81,10 +82,12 @@ function KeyManager({session}:{session:UserSession}){
   }
   return <section aria-label="个人自动化密钥管理"><Card>
     <p>每把密钥只允许读取你选择的一类个人账户数据，到期或撤销后失效。</p>
+    {previous && !pending && <p>换发后原密钥 {previous.key_id} 将立即停用。</p>}
     {!pending && <Space wrap><label>密钥名称 <Input aria-label="密钥名称" value={label} maxLength={64} disabled={busy} onChange={e=>setLabel(e.target.value)}/></label>
-      <label>读取权限 <select value={scope} disabled={busy} onChange={e=>setScope(e.target.value as ReadScope)}><option value="wallet:read">读取个人钱包</option><option value="budgets:read">读取个人预算</option></select></label>
+      <label>读取权限 <select value={previous?.scope??scope} disabled={busy||!!previous} onChange={e=>setScope(e.target.value as ReadScope)}><option value="wallet:read">读取个人钱包</option><option value="budgets:read">读取个人预算</option></select></label>
       <label>有效期 <select value={days} disabled={busy} onChange={e=>setDays(Number(e.target.value))}>{[1,7,30].map(n=><option key={n} value={n}>{n} 天</option>)}</select></label>
-      <Button disabled={busy||!storageOK||!label.trim()||list.isError||!list.isSuccess} onClick={()=>void register()}>创建只读密钥</Button>
+      <Button disabled={busy||!storageOK||!label.trim()||list.isError||!list.isSuccess} onClick={()=>void register()}>{previous?'确认换发密钥':'创建只读密钥'}</Button>
+      {previous&&<Button disabled={busy} onClick={()=>setPrevious(undefined)}>取消换发</Button>}
     </Space>}
     {pending && <section aria-label="本次登记"><p>登记编号 <code>{pending}</code></p>
       {revealed && local ? <><label>请保存密钥，离开此面板后无法再次显示
@@ -97,7 +100,9 @@ function KeyManager({session}:{session:UserSession}){
     {list.isError && <Alert type="warning" title="暂时无法读取密钥列表"/>}
     <Button disabled={list.isFetching||busy} onClick={()=>void list.refetch()}>刷新密钥列表</Button>
     {!list.isError && list.data?.data.map(item=><div key={item.key_id}><b>{item.label}</b> · {purposes[item.scope]} · {statuses[item.status]} · {new Date(item.expires_at).toLocaleString()}
-      <p><code>{item.key_id}</code> {item.status==='active'&&<Button disabled={busy} onClick={()=>setRevokeId(item.key_id)}>撤销 {item.label}</Button>}</p></div>)}
+      <p><code>{item.key_id}</code> {item.status==='active' && <Button disabled={busy||!!pending} onClick={()=>{
+        setPrevious(item);setLabel(item.label);setScope(item.scope);setRevokeId(undefined);setIssue('');
+      }}>换发 {item.label}</Button>} {item.status==='active'&&<Button disabled={busy} onClick={()=>setRevokeId(item.key_id)}>撤销 {item.label}</Button>}</p></div>)}
     {revokeId && <Space><span>撤销编号 {revokeId}？</span><Button disabled={busy} danger onClick={()=>void withdraw(revokeId)}>确认撤销密钥</Button>
       <Button disabled={busy} onClick={()=>setRevokeId(undefined)}>返回</Button></Space>}
     <Space>{pages.length>0 && <Button onClick={()=>setPages(pages.slice(0,-1))}>上页密钥</Button>}

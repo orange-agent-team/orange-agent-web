@@ -67,6 +67,39 @@ try{
   await name.waitFor();
   const delayed=await ctx.request.put(later.url,{headers:{Origin:f.origin,'X-CSRF-Token':later.csrf,'Idempotency-Key':later.id},data:later.body});
   if(delayed.status()!==409)throw Error('Withdrawn unissued credential could be recreated');
+  await page.unroute('**/api/v1/account/api-keys/*');
+  await name.fill('换发验证');
+  await page.getByLabel('读取权限').selectOption('wallet:read');
+  await page.getByRole('button',{name:'创建只读密钥'}).click();
+  await shown.waitFor();
+  const predecessor=await shown.inputValue();
+  const use=async bearer=>(await fetch(api.origin+'/api/v1/automation/account/wallet',{headers:{Authorization:'Bearer '+bearer}})).status;
+  if(await use(predecessor)!==200)throw Error('Original key was not usable');
+  await page.getByRole('button',{name:'我已保存'}).click();
+  await page.getByRole('button',{name:'换发 换发验证',exact:true}).click();
+  let replacements=0,successorId,registration;
+  await page.route('**/api/v1/account/api-keys/*/replacements/*',async route=>{
+    const req=route.request();replacements++;
+    if(req.method()!=='PUT'||req.postData().includes('oa1.'))throw Error('Invalid replacement transport');
+    if(replacements===1){
+      successorId=req.headers()['idempotency-key'];registration=req.postData();
+      const reply=await route.fetch();
+      if(reply.status()!==200||(await reply.json()).key_id!==successorId||await use(predecessor)!==401)throw Error('Original still usable after replacement');
+      return route.abort('failed');
+    }
+    if(req.headers()['idempotency-key']!==successorId||registration!==req.postData())throw Error('Replacement retry changed identity');
+    return route.continue();
+  });
+  await page.getByRole('button',{name:'确认换发密钥'}).click();
+  await page.getByRole('button',{name:'重试原登记'}).click();
+  await shown.waitFor();
+  const successor=await shown.inputValue();
+  if(replacements!==2||successor===predecessor||await use(successor)!==200||await use(predecessor)!==401)throw Error('Rotation did not preserve exactly one usable key');
+  await page.getByRole('button',{name:'我已保存'}).click();
+  await page.getByRole('button',{name:'撤销 换发验证',exact:true}).click();
+  await page.getByRole('button',{name:'确认撤销密钥'}).click();
+  await page.getByRole('button',{name:'撤销 换发验证',exact:true}).waitFor({state:'hidden'});
+  if(await use(successor)!==401)throw Error('Successor withdrawal failed');
   console.log(JSON.stringify({real_browser:true,lost_response_same_key:true,budget_read:true,wallet_scope_denied:true,
-    no_secret_in_web_storage:true,reopening_hides_secret:true,revoke_denied_future_reads:true,withdraw_before_create:true}));
+    no_secret_in_web_storage:true,reopening_hides_secret:true,revoke_denied_future_reads:true,withdraw_before_create:true,original_revoked_at_replacement:true,recovered_successor:true,successor_withdrawn:true}));
 }finally{await browser?.close();await server.close();}

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Orange personal account API",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "Owner comes exclusively from the current user session. Budget creation does not add credits or reserve funds. Pending earned credits are not spendable. Team budget governance and real payments are separate capabilities. Scoped automation reads derive their personal owner from the current credential."
   },
   "paths": {
@@ -822,6 +822,95 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/account/api-keys/{previous}/replacements/{key}": {
+      "put": {
+        "operationId": "replacePersonalAutomationKey",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "previous",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "description": "Equal to the key path parameter for this operation."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Original registration metadata, including its current status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalKeyView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authority or transaction rejected. Retry a mutation only with its original key and body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPersonalKey"
+              }
+            }
+          }
+        },
+        "description": "Atomically register one successor with the existing scope and revoke the original. Retry with the same previous ID, new ID and body."
       }
     }
   },

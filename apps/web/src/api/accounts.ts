@@ -6,15 +6,23 @@ export interface Wallet { user_id: string; owner_id: string; gift: string; earne
 export interface ProviderIncome {job_id:string;units:string;eligible_unix:string;state:'pending'|'review'|'available'}
 export interface IncomePage {user_id:string;owner_id:string;data:ProviderIncome[];next_cursor:string|null}
 export interface BudgetPage { user_id: string; owner_id: string; data: Budget[]; next_cursor: string | null }
+export type ReadScope='wallet:read'|'budgets:read';
+export interface KeyDetails {
+  key_id:string; user_id:string; owner_id:string; audience:'orange-personal-automation-v1'; scope:ReadScope;
+  label:string; status:'active'|'revoked'|'expired'; created_at:string; expires_at:string;
+}
+export interface KeyPage {data:KeyDetails[];next_cursor:string|null}
 const ajv = new Ajv2020({ strict: false }); ajv.addSchema(schema);
 const validators = {
+  PersonalKey: ajv.compile<KeyDetails>({$ref:schema.$id+'#/$defs/PersonalKeyView'}),
+  PersonalKeys: ajv.compile<KeyPage>({$ref:schema.$id+'#/$defs/PersonalKeyPage'}),
   Wallet: ajv.compile<Wallet>({ $ref: `${schema.$id}#/$defs/WalletView` }),
   Budget: ajv.compile<Budget>({ $ref: `${schema.$id}#/$defs/BudgetView` }),
   CreateBudget: ajv.compile<CreateBudget>({ $ref: `${schema.$id}#/$defs/CreateBudget` }),
   IncomePage: ajv.compile<IncomePage>({$ref:`${schema.$id}#/$defs/ProviderIncomeList`}),
   BudgetPage: ajv.compile<BudgetPage>({ $ref: `${schema.$id}#/$defs/PersonalBudgetList` }),
 };
-type Values = { IncomePage:IncomePage; Wallet: Wallet; Budget: Budget; CreateBudget: CreateBudget; BudgetPage: BudgetPage };
+type Values = { PersonalKey:KeyDetails; PersonalKeys:KeyPage; IncomePage:IncomePage; Wallet: Wallet; Budget: Budget; CreateBudget: CreateBudget; BudgetPage: BudgetPage };
 const maximum = 9223372036854775807n;
 const amounts = new Set(['units','gift', 'earned', 'purchased', 'reserved_gift', 'reserved_earned', 'reserved_purchased', 'pending_earned', 'limit', 'spent', 'reserved']);
 export function decodeAccount<K extends keyof Values>(kind: K, value: unknown): Values[K] {
