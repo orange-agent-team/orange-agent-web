@@ -30,6 +30,7 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
   const [handoff,setHandoff]=useState<EnrollmentHandoff>();
   const [busy,setBusy]=useState(false);
   const [issue,setIssue]=useState('');
+  const [readback,setReadback]=useState(false);
   const [confirm,setConfirm]=useState(false);
   const active=useRef<AbortController|null>(null);
   const generation=useRef(0);
@@ -41,7 +42,7 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
   const remember=(next:string)=>{sessionStorage.setItem(bookmark,next);setLookup(next);setId(next);setConfirm(false);};
   async function fileSelected(file:File|undefined){
     if(!file||active.current)return;
-    const version=++generation.current;setHandoff(undefined);setId('');setLookup('');setConfirm(false);setIssue('');setBusy(true);
+    const version=++generation.current;setHandoff(undefined);setId('');setLookup('');setConfirm(false);setIssue('');setReadback(false);setBusy(true);
     try{
       const data=await readEnrollmentHandoff(file);
       if(version!==generation.current)return;
@@ -51,13 +52,13 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
   }
   function inspect(){
     if(busy||!validRequestId(lookup))return;
-    generation.current++;setIssue('');if(lookup!==id)setHandoff(undefined);
+    generation.current++;setIssue('');setReadback(false);if(lookup!==id)setHandoff(undefined);
     try{remember(lookup);if(lookup===id)void query.refetch();}
     catch{setIssue('当前浏览器无法保存请求编号。');}
   }
   async function mutate(action:'authorize'|'revoke'){
     if(active.current||busy||!id||lookup!==id||mismatch || (action==='authorize' && !handoff) || (action==='revoke' && (!result||!confirm)))return;
-    const controller=new AbortController();active.current=controller;setBusy(true);setIssue('');
+    const controller=new AbortController();active.current=controller;setBusy(true);setIssue('');setReadback(false);
     try{
       sessionStorage.setItem(bookmark,id);
       await cache.cancelQueries({queryKey,exact:true});
@@ -65,8 +66,19 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
       if(!controller.signal.aborted){cache.setQueryData(queryKey,receipt);setConfirm(false);}
     }catch(e){
       if(!controller.signal.aborted){
-        setIssue(e instanceof ApiFailure && (e.status===401||e.status===403)?'当前登录或团队权限已失效。':'操作结果尚未确认，请按原请求编号刷新状态。');
-        await query.refetch();
+        if(e instanceof ApiFailure && (e.status===401||e.status===403)){
+          setIssue('当前登录或团队权限已失效。');await query.refetch();
+        }else{
+          const original=await query.refetch();
+          if(controller.signal.aborted)return;
+          const receipt=original.isError?null:original.data;
+          const matches=receipt && (action==='authorize' ? handoff && receipt.requested_by===session.user_id &&
+            receipt.csr_sha256===handoff.request.csr_sha256 && receipt.spki_sha256===handoff.request.spki_sha256 :
+            result && receipt.state==='revoked' && receipt.spki_sha256===result.spki_sha256 && receipt.csr_sha256===result.csr_sha256 &&
+            receipt.requested_by===result.requested_by && receipt.expires_unix===result.expires_unix);
+          if(matches){setReadback(true);setConfirm(false);}
+          else setIssue('操作结果尚未确认，请按原请求编号刷新状态。');
+        }
       }
     }finally{if(active.current===controller){active.current=null;if(!controller.signal.aborted)setBusy(false);}}
   }
@@ -74,8 +86,8 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
     <p><Link to={back}>返回{ownerLabel}</Link></p><h1>设备注册</h1>
     <Card><h2>授权设备公钥</h2><p>在设备上运行 <code>orange-worker prepare-enrollment-handoff</code>，选择导出的公开 JSON。</p>
       <label>公开交接文件 <input aria-label="公开交接文件" type="file" accept=".json,application/json" disabled={busy}
-        onChange={e=>{const file=e.target.files?.[0];e.target.value='';void fileSelected(file);}}/></label>
-      {handoff&&<><p>授权归属 <strong>{ownerLabel}</strong> · <code>{owner}</code></p><p>请求编号 <code>{handoff.request.request_id}</code></p>
+        onChange={e=>{void fileSelected(e.target.files?.[0]);}}/></label>
+      {handoff&&(!result||mismatch)&&<><p>授权归属 <strong>{ownerLabel}</strong> · <code>{owner}</code></p><p>请求编号 <code>{handoff.request.request_id}</code></p>
         <p>设备公钥 SHA-256 <Typography.Text copyable>{handoff.request.spki_sha256}</Typography.Text></p>
         <p>请与设备端显示的公钥摘要核对。授权自首次提交起有效 10 分钟。</p>
         <Button type="primary" disabled={busy||lookup!==id||query.isFetching||!query.isSuccess||result!==null||mismatch} onClick={()=>void mutate('authorize')}>确认授权设备</Button></>}
@@ -93,6 +105,6 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
           <Space><Button danger disabled={busy} onClick={()=>void mutate('revoke')}>确认撤销设备授权</Button><Button disabled={busy} onClick={()=>setConfirm(false)}>保留授权</Button></Space></>:
           <Button danger disabled={busy||lookup!==id||query.isFetching} onClick={()=>setConfirm(true)}>撤销设备授权</Button>}</>}
       </>}
-    </Card>{issue&&<Alert type="warning" title={issue}/>}
+    </Card>{readback&&<Alert type="info" title="已按原请求编号读回平台记录。"/>}{issue&&<Alert type="warning" title={issue}/>}
   </section>;
 }

@@ -51,7 +51,7 @@ try{
   await imported(f.personal);
   await visible(f.personal.request.spki_sha256);await enabled('确认授权设备');require(writes===0,'Import authorized the device');
   await button('确认授权设备').click();
-  await visible('操作结果尚未确认，请按原请求编号刷新状态。');await visible('已授权，等待签发');
+  await visible('已按原请求编号读回平台记录。');await visible('已授权，等待签发');
   if(f.screenshot)await page.screenshot({path:f.screenshot,fullPage:true});
   await page.reload();await visible('已授权，等待签发');
   const scopeBookmarks=await page.evaluate(()=>Object.entries(sessionStorage).filter(([k])=>k.startsWith('orange.worker-enrollment.v1:')).map(([,v])=>v));
