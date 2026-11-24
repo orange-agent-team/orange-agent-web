@@ -22,7 +22,12 @@ async function login(page: Page, index = 0) {
 function active(user: string, enabled: boolean) {
   if (!/^[a-f0-9-]{36}$/.test(user)) throw new Error('Expected locally generated user UUID');
   const url = new URL(readFileSync(database!, 'utf8').trim());
-  if (url.hostname !== '127.0.0.1' || url.port !== '55432' || url.pathname !== '/orange_dev') throw new Error('Dedicated development DB required');
+  const owned = process.env.ORANGE_TEST_USER_OIDC_DATABASE;
+  if (!owned || !/^orange_user_oidc_[0-9a-f]{32}$/.test(owned) ||
+      !['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1' ||
+      url.port !== '55432' || url.pathname !== '/'+owned || url.search || url.hash) {
+    throw new Error('The exact disposable identity database created by this test is required');
+  }
   execFileSync('/opt/homebrew/opt/postgresql@17/bin/psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1'], {
     input: `UPDATE users SET active=${enabled} WHERE user_id='${user}';`,
     env: { ...process.env, PGHOST: url.hostname, PGPORT: url.port, PGDATABASE: url.pathname.slice(1),
