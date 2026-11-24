@@ -203,3 +203,34 @@ test('reconnecting retires a previously cancellable Job until the new projection
   expect(state.submits).toBe(1);
  } finally {release();}
 });
+
+test('transport loss retires a pending quote and cannot reuse an expired session or submit on reconnection',async({page,context})=>{
+ const state=await fixture(page);
+ await quote(page);
+ const submit=page.getByRole('button',{name:'确认并提交原请求'});
+ await expect(submit).toBeVisible();
+ const originalKeys=[...state.quoteKeys];
+ await context.setOffline(true);
+ await expect(page.getByRole('heading',{name:'网络已断开'})).toBeVisible();
+ await expect(submit).toHaveCount(0);
+ await expect(page.getByRole('link',{name:'登录用户空间'})).toHaveCount(0);
+ let sessionReads=0,release=()=>{};
+ const held=new Promise<void>(done=>{release=done;});
+ await page.route('**/api/v1/session',async route=>{
+  sessionReads++;
+  await held;
+  await route.fulfill({status:401,json:{code:'UNAUTHENTICATED',message:'Expired isolated session',request_id:'expired-session',retry_class:'after_reauth'}});
+ });
+ try{
+  await context.setOffline(false);
+  await expect.poll(()=>sessionReads).toBeGreaterThan(0);
+  await expect(submit).toHaveCount(0);
+  await expect(page.getByRole('link',{name:'登录用户空间'})).toHaveCount(0);
+  release();
+  await expect(page.getByRole('heading',{name:'登录你的账户'})).toBeVisible();
+  await expect(submit).toHaveCount(0);
+  expect(state.submits).toBe(0);
+  expect(state.cancels).toBe(0);
+  expect(state.quoteKeys).toEqual(originalKeys);
+ }finally{release();await context.setOffline(false);}
+});

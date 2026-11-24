@@ -90,7 +90,33 @@ try{
  if(posts!==1)throw Error('Portal resent a cancellation without another operator action');
  await expect.poll(()=>frames.some(frame=>frame.history.kind==='page'&&frame.history.events.some(e=>e.event_type==='job.cancelled')),{timeout:12000}).toBe(true);
  if(posts!==1)throw Error('Event replay caused a second business command');
- console.log(JSON.stringify({event_snapshot:true,reconnect_hid_cancel:true,fresh_revision_before_ack:true,durable_cancellation_event:true,acknowledgments:acknowledgments.length,team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
+ // Revoke this disposable development session from another live client while the page is offline.
+ // The original page must retire private views immediately, then wait for the real new session response.
+ await context.setOffline(true);
+ await expect(page.getByRole('heading',{name:'网络已断开'})).toBeVisible();
+ await expect(page.getByRole('link',{name:'登录用户空间'})).toHaveCount(0);
+ await expect(page.getByText(f.job,{exact:true})).toHaveCount(0);
+ const revoker=await browser.newContext({baseURL:f.origin,ignoreHTTPSErrors:true});
+ try{
+  await revoker.addCookies([{name:'__Host-orange-user',value:f.token,url:f.origin,secure:true,httpOnly:true,sameSite:'Lax'}]);
+  const revoked=await revoker.request.delete(f.origin+'/api/v1/session',{headers:{Origin:f.origin,'X-CSRF-Token':f.csrf,'Idempotency-Key':randomUUID()}});
+  if(revoked.status()!==204)throw Error('Unable to revoke isolated browser identity');
+ }finally{await revoker.close();}
+ let allowSession;
+ const holdSession=new Promise(done=>{allowSession=done;});
+ let sessionProbes=0;
+ await page.route(f.origin+'/api/v1/session',async route=>{sessionProbes++;await holdSession;await route.continue();});
+ try{
+  await context.setOffline(false);
+  await expect.poll(()=>sessionProbes).toBeGreaterThan(0);
+  await expect(page.getByRole('heading',{name:'正在确认登录状态'})).toBeVisible();
+  await expect(action).toHaveCount(0);
+  await expect(page.getByRole('link',{name:'登录用户空间'})).toHaveCount(0);
+  allowSession();
+  await expect(page.getByRole('heading',{name:'登录你的账户'})).toBeVisible();
+  await expect(action).toHaveCount(0);
+ } finally {allowSession();}
+ console.log(JSON.stringify({offline_session_retired:true,remote_revocation_confirmed:true,event_snapshot:true,reconnect_hid_cancel:true,fresh_revision_before_ack:true,durable_cancellation_event:true,acknowledgments:acknowledgments.length,team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.httpServer.close(resolve));

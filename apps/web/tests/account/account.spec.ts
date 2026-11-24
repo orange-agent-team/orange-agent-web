@@ -46,3 +46,34 @@ test('actor mismatch clears account content and reauthenticates', async ({ page 
  const state = await fixture(page); await page.goto('/account'); await expect(page.getByTestId('available-credits')).toBeVisible(); state.revoked = true;
  await page.getByRole('button', { name: '刷新账户' }).click(); await expect(page.getByRole('heading', { name: '登录你的账户' })).toBeVisible(); await expect(page.getByTestId('available-credits')).toHaveCount(0); expect(state.effects).toBe(0);
 });
+
+test('a failed logout stays fenced after reconnect until the user retries it',async({page,context})=>{
+ const state=await fixture(page);
+ let reads=0,logouts=0;
+ await page.route('**/api/v1/session',async route=>{
+  if(route.request().method()==='DELETE'){
+   logouts++;
+   if(logouts===1) return route.fulfill({status:503,json:{code:'UNAVAILABLE',message:'fixture',request_id:'logout-loss',retry_class:'query_original'}});
+   state.revoked=true;
+   return route.fulfill({status:204,body:''});
+  }
+  reads++;
+  return route.fallback();
+ });
+ await page.goto('/account');
+ await expect(page.getByTestId('available-credits')).toBeVisible();
+ await page.getByRole('button',{name:'退出',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'退出尚未确认'})).toBeVisible();
+ const prior=reads;
+ await context.setOffline(true);
+ await expect(page.getByRole('heading',{name:'网络已断开'})).toBeVisible();
+ await context.setOffline(false);
+ await expect(page.getByRole('heading',{name:'退出尚未确认'})).toBeVisible();
+ await expect(page.getByTestId('available-credits')).toHaveCount(0);
+ expect(reads).toBe(prior);
+ expect(logouts).toBe(1);
+ await page.getByRole('button',{name:'重试退出'}).click();
+ await expect(page.getByRole('heading',{name:'登录你的账户'})).toBeVisible();
+ expect(logouts).toBe(2);
+ expect(state.effects).toBe(0);
+});
