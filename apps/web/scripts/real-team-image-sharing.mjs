@@ -34,7 +34,7 @@ try {
   async function inspect(page) {
     await page.getByText('核对已存图像',{exact:true}).click();
     await page.getByRole('textbox',{name:'图像上传记录 ID'}).fill(f.upload);
-    await page.getByRole('button',{name:'校验 PNG'}).click();
+    await page.getByRole('button',{name:'校验 PNG',exact:true}).click();
     await expect(page.getByLabel('图像校验结果')).toContainText(f.rgb);
   }
   const reader=await pageAs(f.viewer);
@@ -42,7 +42,7 @@ try {
   await expect(reader.getByRole('link',{name:'管理共享权限'})).toHaveCount(0);
   const finance=await pageAs(f.billing);
   await expect(finance.getByText('当前身份无法读取团队内容')).toBeVisible();
-  await expect(finance.getByRole('button',{name:'校验 PNG'})).toHaveCount(0);
+  await expect(finance.getByRole('button',{name:'校验 PNG',exact:true})).toHaveCount(0);
   const creator=await pageAs(f.author);
   await inspect(creator);
   await creator.getByRole('link',{name:'管理共享权限'}).click();
@@ -65,7 +65,7 @@ try {
   await creator.getByRole('button',{name:'重试同一次更改'}).click();
   await expect(list).not.toContainText(f.viewer.user);
   if(used.length!==2||!used[0]||used[1]!==used[0])throw Error('Lost ACL receipt replay changed its idempotency key');
-  await reader.getByRole('button',{name:'校验 PNG'}).click();
+  await reader.getByRole('button',{name:'校验 PNG',exact:true}).click();
   await expect(reader.getByText(/无法核对该图像/)).toBeVisible();
   await expect(reader.getByLabel('图像校验结果')).toHaveCount(0);
   await reader.goto(f.origin+'/organizations/'+f.team+'/resources/'+f.resource+'/sharing');

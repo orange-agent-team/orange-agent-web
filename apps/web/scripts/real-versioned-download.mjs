@@ -36,7 +36,7 @@ try {
   await page.goto(origin.origin+'/tasks');
   await page.getByText('核对已存图像',{exact:true}).click();
   await page.getByRole('textbox',{name:'图像上传记录 ID'}).fill(f.upload);
-  await page.getByRole('button',{name:'校验 PNG'}).click();
+  await page.getByRole('button',{name:'校验 PNG',exact:true}).click();
   const receipt=page.getByLabel('图像校验结果');
   await expect(receipt).toContainText(f.rgb);
   const save=page.getByRole('button',{name:'下载已校验 PNG'});
@@ -76,6 +76,46 @@ try {
   await expect(page.getByText(/图像下载未完成/)).toBeVisible();
   await expect(receipt).toHaveCount(0);
   if(unexpected)throw Error('Revoked image was saved');
+  if(f.directUpload){
+    await page.getByRole('textbox',{name:'图像上传记录 ID'}).fill('');
+    await page.getByLabel('选择图像文件').setInputFiles(f.pngFile);
+    await page.unroute(published,hold);
+    let nativePuts=0;
+    const native=r=>{if(r.method()==='PUT' && new URL(r.url()).origin===storage.origin) nativePuts++;};
+    page.on('request',native);
+    await page.getByRole('button',{name:'上传并校验 PNG'}).click();
+    await expect(receipt).toContainText(f.rgb,{timeout:25000});
+    page.off('request',native);
+    if(nativePuts!==1)throw Error('Expected one native browser PUT without interception');
+    await page.getByRole('textbox',{name:'图像上传记录 ID'}).fill('');
+    await page.getByLabel('选择图像文件').setInputFiles(f.pngFile);
+    let received=0,confirmed=0,externalHeaders;
+    await page.route(published,async route=>{
+      if(route.request().method()!=='PUT'){await route.continue();return;}
+      externalHeaders=await route.request().allHeaders();
+      const resp=await route.fetch();
+      if(resp.status()!==200)throw Error('Provider rejected the browser upload: '+resp.status());
+      received++;
+      await route.abort('failed'); // The real provider already accepted the exact bytes.
+    });
+    await page.route(f.origin+'/api/v1/owners/*/uploads/*/upload-confirmations',async route=>{
+      const response=await route.fetch();
+      if(response.status()!==200)throw Error('Original recovery confirmation failed: '+response.status());
+      confirmed++;await route.abort('failed');
+    });
+    await page.getByRole('button',{name:'上传并校验 PNG'}).click();
+    await expect(receipt).toContainText(f.rgb,{timeout:25000});
+    if(received!==1||confirmed!==1||externalHeaders.cookie||externalHeaders.authorization||externalHeaders.referer)
+      throw Error('Unexpected direct transfer count or ambient browser credentials');
+    const upload=await boxValue();
+    const status=await context.request.get(f.origin+'/api/v1/owners/'+f.owner+'/uploads/'+encodeURIComponent(upload));
+    const artifact=await status.json();
+    if(status.status()!==200||artifact.state!=='available'||artifact.sha256!==f.sha256||artifact.size_bytes!==String(f.bytes))
+      throw Error('Recovered upload did not match inspected provider bytes');
+    console.log(JSON.stringify({browser_direct_put:true,native_browser_puts:nativePuts,lost_reply_case_puts:received,actual_confirmations:confirmed,lost_provider_reply_recovered:true,
+      lost_confirmation_recovered:true,stage_credentials_forwarded:false,version:artifact.version_id}));
+  }
+  async function boxValue(){return page.getByRole('textbox',{name:'图像上传记录 ID'}).inputValue();}
   console.log(JSON.stringify({real_chrome:true,verified_proxy_file:true,verified_s3_file:true,provider_cookie:false,
     provider_referrer:false,revoked_before_save:true,files_after_deletion:0}));
 }finally{if(browser)await browser.close();await server.close();}

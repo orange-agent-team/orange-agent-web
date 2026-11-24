@@ -13,7 +13,7 @@ const formats: Record<string, AudioMedia> = { wav:'audio/wav', flac:'audio/flac'
 type Selection = { file: File; media: AudioMedia; upload: string };
 
 export default function AudioPreflight({ session, invalidate,ownerId,budgetId }: { session: UserSession; invalidate: () => void;ownerId?:string;budgetId?:string }) {
-  const api=useMemo(()=>new ComputeClient(undefined,ownerId),[ownerId]);
+  const api=useMemo(()=>new ComputeClient(undefined,ownerId,true),[ownerId]);
   const [selection, setSelection] = useState<Selection>();
   const [upload, setUpload] = useState('');
   const [pending, setPending] = useState(false);

@@ -3,17 +3,23 @@ import { Alert, Button, Card, Input } from 'antd';
 import { Link } from 'react-router';
 import { ApiFailure } from '../api/client';
 import { ComputeClient } from '../api/compute-client';
-import type { InspectedImage } from '../api/compute-contracts';
+import { sha256,type InspectedImage } from '../api/compute-contracts';
 import type { UserSession } from '../api/contracts';
 
-export function ImageOutputInspection({ api, session, invalidate, sharingHref }: {
-  api: ComputeClient; session: UserSession; invalidate: () => void; sharingHref?: (resource:string) => string;
+export function ImageOutputInspection({ api, session, invalidate, sharingHref, canUpload=true }: {
+  api: ComputeClient; session: UserSession; invalidate: () => void; sharingHref?: (resource:string) => string; canUpload?:boolean;
 }) {
   const [upload, setUpload] = useState('');
   const [result, setResult] = useState<InspectedImage>();
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const picker=useRef<HTMLInputElement>(null);
+  const [file,setFile]=useState<File>();
+  const retireFile=useCallback(()=>{
+    setFile(undefined);
+    if(picker.current) picker.current.value='';
+  },[]);
 
   const clear = useCallback(() => {
     active.current?.abort();
@@ -23,7 +29,7 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
     setError('');
   }, []);
   useEffect(() => {
-    const retire = () => { clear(); setUpload(''); };
+    const retire = () => { clear(); retireFile();setUpload(''); };
     const hide = () => { if (document.hidden) retire(); };
     document.addEventListener('visibilitychange', hide);
     window.addEventListener('offline', retire);
@@ -33,7 +39,7 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
       active.current?.abort();
       active.current = null;
     };
-  }, [clear]);
+  }, [clear,retireFile]);
   useEffect(() => {
     if (!result || pending) return;
     const timer = window.setTimeout(clear, 15000);
@@ -58,6 +64,29 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
     }
   }
 
+  async function uploadFile() {
+    if (!file || active.current || !canUpload) return;
+    const id=upload.trim()||crypto.randomUUID();
+    if(!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(id)) {setError('上传记录 ID 无效。');return;}
+    if(file.size===0||file.size>(16<<20)) {setError('请选择不超过 16 MiB 的 PNG 文件。');return;}
+    clear();setUpload(id);setPending(true);
+    const current=new AbortController();active.current=current;
+    try {
+      const hash=await sha256(new Uint8Array(await file.arrayBuffer()));
+      if(current.signal.aborted) return;
+      const request={upload_id:id,size_bytes:String(file.size),media_type:'image/png' as const,sha256:hash};
+      const original=await api.beginUpload(session,request,current.signal);
+      if(original.state==='staging') await api.putImage(session,request,file,current.signal);
+      else if(original.state!=='available') throw Error('UPLOAD_UNAVAILABLE');
+      const inspected=await api.inspectImage(session,id,current.signal);
+      if(active.current===current && !document.hidden) {setResult(inspected);retireFile();}
+    } catch(reason) {
+      if(active.current!==current) return;
+      if(reason instanceof ApiFailure && reason.status===401) { invalidate();return; }
+      setError('未确认图像可用。重试会先核对同一上传记录，请保留其 ID。');
+    } finally {if(active.current===current) {active.current=null;setPending(false);}}
+  }
+
   async function download() {
     if (!result || active.current) return;
     const current=new AbortController();
@@ -77,7 +106,7 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
     } finally {if(active.current===current) {active.current=null;setPending(false);}}
   }
 
-  return <Card><details onToggle={event => { if (!event.currentTarget.open) clear(); }}>
+  return <Card><details onToggle={event => { if (!event.currentTarget.open) {clear();retireFile();} }}>
     <summary>核对已存图像</summary>
     <form onSubmit={inspect}>
       <label>图像上传记录 ID
@@ -87,6 +116,11 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
         校验 PNG
       </Button>
     </form>
+    {canUpload && <div>
+      <label>选择图像文件<input ref={picker} type="file" accept=".png,image/png" disabled={pending}
+        onChange={event=>{clear();setFile(event.currentTarget.files?.[0]);}} /></label>
+      <Button disabled={!file || pending} onClick={()=>void uploadFile()}>上传并校验 PNG</Button>
+    </div>}
     {error && <Alert type="error" title={error} />}
     {result && <dl aria-label="图像校验结果">
       <dt>资源 ID</dt><dd>{result.artifact_id} {sharingHref && <Link to={sharingHref(result.artifact_id)}>管理共享权限</Link>}</dd>

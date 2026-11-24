@@ -37,7 +37,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const fixedBudget = teamBudget?.root_budget_id;
   const session: ComputeSession = useMemo(() => team && fixedBudget
     ? {...identity, allocation: {owner:team, budget:fixedBudget}} : identity, [identity, team, fixedBudget]);
-  const api = useMemo(() => new ComputeClient(undefined, team), [team]);
+  const api = useMemo(() => new ComputeClient(undefined, team, true), [team]);
   const scope = team ? JSON.stringify([authorityKey(identity),team,fixedBudget]) : authorityKey(identity);
   const client = useQueryClient();
   const accountLabel = team ? '团队预算' : '个人预算';

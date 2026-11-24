@@ -29,7 +29,7 @@ try {
   await page.goto(origin+'/tasks');
   const summary = page.getByText('核对已存图像',{exact:true});
   const box = page.getByRole('textbox',{name:'图像上传记录 ID'});
-  const inspect = page.getByRole('button',{name:'校验 PNG'});
+  const inspect = page.getByRole('button',{name:'校验 PNG',exact:true});
   const receipt = page.getByLabel('图像校验结果');
   await summary.click();
   await box.fill(f.upload);

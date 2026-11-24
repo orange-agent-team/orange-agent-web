@@ -1,3 +1,4 @@
+import {transferDirect} from './direct-upload';
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
 import { isArtifactError, decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type InspectedImage, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
@@ -37,7 +38,7 @@ function storageOrigin(value:unknown):string|null {
 }
 
 export class ComputeClient extends UserClient {
- constructor(fetcher?:typeof fetch,private readonly selectedOwner?:string){super(fetcher);if(selectedOwner!==undefined)pathId(selectedOwner);}
+ constructor(fetcher?:typeof fetch,private readonly selectedOwner?:string,private readonly deployedUploads=false){super(fetcher);if(selectedOwner!==undefined)pathId(selectedOwner);}
  owner(session:UserSession){return this.selectedOwner??session.personal_owner_id;}
  async funding(session:UserSession,quote:{quote_id:string;root_budget_id:string;price_version:string;max_amount:string;expires_at_unix:string},signal?:AbortSignal){
   const value=decodeCompute('Funding',await this.call(this.base(session)+'/quotes/'+pathId(quote.quote_id)+'/funding',{signal}));
@@ -151,9 +152,7 @@ export class ComputeClient extends UserClient {
     if (artifact.state!=='available' || artifact.media_type!=='image/png' || artifact.artifact_id!==inspected.artifact_id ||
         artifact.version_id!==inspected.version_id || artifact.sha256!==inspected.content.sha256 ||
         artifact.size_bytes!==String(inspected.content.bytes) || inspected.content.bytes>(16<<20)) throw new ContentUnavailable();
-    const config = await this.fetcher('/artifact-download.json',{signal:end.signal, cache:'no-store',credentials:'same-origin',redirect:'error'});
-    if (!config.ok) throw new Error('DOWNLOAD_CONFIGURATION_UNAVAILABLE');
-    const origin=storageOrigin(await config.json());
+    const origin=await this.transferOrigin(end.signal);
     let target=this.base(session)+'/uploads/'+pathId(upload)+'/content?'+new URLSearchParams({version_id:artifact.version_id});
     if (origin!==null) {
       const grant=decodeCompute('DownloadGrant',await this.call(this.base(session)+'/uploads/'+pathId(upload)+'/download-authorizations',{
@@ -198,8 +197,36 @@ export class ComputeClient extends UserClient {
   if (!request.media_type.startsWith('audio/') || file.size < 1 || file.size > 100000000 || request.size_bytes !== String(file.size)) throw new Error('INVALID_AUDIO');
   return this.putContent(session, request, file, signal, 300000);
  }
+ private async transferOrigin(signal:AbortSignal) {
+  const config=await this.fetcher('/artifact-download.json',{signal,cache:'no-store',credentials:'same-origin',redirect:'error'});
+  if(!config.ok) throw new Error('TRANSFER_CONFIGURATION_UNAVAILABLE');
+  return storageOrigin(await config.json());
+ }
+ async putImage(session:UserSession,request:Upload,file:File,signal:AbortSignal) {
+  decodeCompute('Upload',request);
+  if(request.media_type!=='image/png'||file.size===0||file.size>(16<<20)||String(file.size)!==request.size_bytes)throw new Error('INVALID_IMAGE_INPUT');
+  return this.putContent(session,request,file,signal,300000);
+ }
  private async putContent(session: UserSession, request: Upload, body: BodyInit, signal?: AbortSignal, timeoutMs = 15000) {
-  const artifact = this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads/${pathId(request.upload_id)}/content`, { method: 'PUT', headers: { ...write(session,request.upload_id), 'Content-Type': 'application/octet-stream' }, body, signal }, 200, timeoutMs),request.upload_id);
+  const deadline=new AbortController();
+  const cancel=()=>deadline.abort();
+  if(signal?.aborted)cancel();else signal?.addEventListener('abort',cancel,{once:true});
+  const timer=setTimeout(cancel,timeoutMs);
+  let raw:unknown;
+  try {
+    const origin=this.deployedUploads ? await this.transferOrigin(deadline.signal) : null;
+    if(origin) {
+      const observed=await this.uploadStatus(session,request.upload_id,deadline.signal);
+      if(observed.sha256!==request.sha256||observed.size_bytes!==request.size_bytes||observed.media_type!==request.media_type||observed.state==='deleted')
+        throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
+      raw=observed.state==='available'?observed:await transferDirect({api:(p,i,t)=>this.call(p,i,200,t),fetcher:this.fetcher,origin,
+            base:this.base(session),session,artifact:observed,request,body,signal:deadline.signal});
+    }else{
+      raw=await this.call(this.base(session)+'/uploads/'+pathId(request.upload_id)+'/content',{method:'PUT',
+        headers:{...write(session,request.upload_id),'Content-Type':'application/octet-stream'},body,signal:deadline.signal},200,timeoutMs);
+    }
+  } finally {clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+  const artifact=this.ownedArtifact(session,raw,request.upload_id);
   if (artifact.state !== 'available' || artifact.sha256 !== request.sha256 || artifact.size_bytes !== request.size_bytes || artifact.media_type !== request.media_type) throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');
   return artifact;
  }

@@ -12,7 +12,7 @@ export default function TeamImageInspection({session, invalidate}: {session: Use
   const {org = ''} = useParams();
   const valid = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(org);
   const teams = useMemo(() => new TeamClient(), []);
-  const api = useMemo(() => valid ? new ComputeClient(undefined, org) : undefined, [org, valid]);
+  const api = useMemo(() => valid ? new ComputeClient(undefined, org, true) : undefined, [org, valid]);
   const membership = useQuery({queryKey:['team-image-membership',session.session_id,org], meta:{accessScope:'resource'}, enabled:valid, retry:false,
     queryFn:({signal}) => teams.organization(session, org, signal), refetchInterval:5000});
   if (valid && membership.isPending) return <Spin />;
@@ -23,6 +23,6 @@ export default function TeamImageInspection({session, invalidate}: {session: Use
     <p><Link to={'/organizations/'+pathId(org)}>{membership.data.name}</Link></p>
     <h1>团队图像校验</h1>
     <ImageOutputInspection key={session.session_id+':'+org} api={api} session={session} invalidate={invalidate}
-      sharingHref={membership.data.role==='viewer' ? undefined : resource=>'/organizations/'+pathId(org)+'/resources/'+pathId(resource)+'/sharing'} />
+      canUpload={membership.data.role!=='viewer'} sharingHref={membership.data.role==='viewer' ? undefined : resource=>'/organizations/'+pathId(org)+'/resources/'+pathId(resource)+'/sharing'} />
   </>;
 }

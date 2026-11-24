@@ -6,6 +6,11 @@ export const TRANSCRIPTION_MEDIA = 'application/vnd.orange.transcription+json';
 export const MODEL_RESPONSE_MEDIA = 'application/vnd.orange.model-response+json';
 export interface Artifact { upload_id: string; artifact_id: string; version_id: string; owner_id: string; sha256: string; size_bytes: string; media_type: string; state: 'staging' | 'available' | 'deleted' }
 export type AudioMedia = 'audio/wav' | 'audio/flac' | 'audio/mpeg' | 'audio/ogg' | 'audio/mp4';
+type UploadIdentity = {artifact_id:string;version_id:string;upload_id:string;transfer_id:string};
+export type DirectUploadAuthorization = {state:'available';artifact:Artifact} | (UploadIdentity & {state:'authorized';url:string;expires_at_unix:string;required_headers: {
+ 'content-length':string;'content-type':'application/octet-stream';'content-disposition':'attachment';'cache-control':'private, no-store';'if-none-match':'*';'x-amz-checksum-sha256':string;'x-amz-meta-orange-root':string;'x-amz-meta-orange-key':string
+}});
+export type DirectUploadObservation = UploadIdentity & {request_id:string;state:'unconfirmed'|'ready_to_confirm'|'verifying'|'available'|'expired';provider_version:string|null;expires_at_unix:string};
 export interface DownloadGrant { artifact_id:string;version_id:string;sha256:string;size_bytes:string;url:string;expires_at_unix:string }
 export interface InspectedImage {
  artifact_id: string; version_id: string;
@@ -38,7 +43,7 @@ export interface TranscriptionResult {
  language:string; language_probability:number; compute_type:'int8'|'int8_float32';
  segments:{start_ms:number;end_ms:number;text:string}[];text:string;
 }
-export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain'|AudioMedia }
+export interface Upload { upload_id: string; sha256: string; size_bytes: string; media_type: 'application/json'|'text/plain'|'image/png'|AudioMedia }
 export interface Price { price_version: string; model_version: string; node_id: string; meter_profile_digest: string; input_price: string; output_price: string; output_limit: string; fee_bps: number }
 export interface ReviewedModel {
  modality: 'text'; model_version: string; model_sha256: string; repository: string; revision: string;
@@ -82,13 +87,15 @@ const validators = {
  AudioGrantReceipt: compile<AudioGrantReceipt>(artifacts,'TranscriptionGrantReceipt'),
  AudioWithdrawal: compile<AudioWithdrawal>(artifacts,'TranscriptionInputWithdrawal'),
  AudioMeasurement: compile<AudioMeasurement>(artifacts, 'AudioMeasurement'),
+ UploadObservation:compile<DirectUploadObservation>(artifacts,'DirectUploadObservation'),
+ UploadAuthorization:compile<DirectUploadAuthorization>(artifacts,'DirectUploadAuthorization'),
  DownloadGrant: compile<DownloadGrant>(artifacts,'ArtifactDownloadAuthorization'),
  InspectedImage: compile<InspectedImage>(artifacts, 'InspectedImage'),
  Artifact: compile<Artifact>(artifacts, 'ArtifactView'), Upload: compile<Upload>(artifacts, 'CreateUpload'),
  Price: compile<Price>(pricing, 'TextPriceView'), QuoteRequest: compile<QuoteRequest>(pricing, 'CreateTextQuote'), Quote: compile<Quote>(pricing, 'TextQuoteView'),
  Submission: compile<Submission>(artifacts, 'SubmitTextJob'), Job: compile<Job>(artifacts, 'JobView'), JobPage: compile<JobPage>(artifacts, 'UserJobList'), JobLookup: compile<JobLookup>(artifacts, 'UserJobLookup'), Withdrawal: compile<Withdrawal>(artifacts,'InvocationWithdrawal'), InputBinding: compile<InputBinding>(artifacts, 'JobInputView'), Result: compile<Result>(artifacts, 'ModelResponseCandidate'),
 };
-type Values = { DownloadGrant:DownloadGrant;  InspectedImage: InspectedImage; Retention:ArtifactRetention; Models:MarketModelList; Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
+type Values = { UploadObservation:DirectUploadObservation; UploadAuthorization:DirectUploadAuthorization; DownloadGrant:DownloadGrant;  InspectedImage: InspectedImage; Retention:ArtifactRetention; Models:MarketModelList; Funding:QuoteFunding; AudioPrice:AudioPrice; AudioQuote:AudioQuote; AudioSubmission:Submission; TranscriptionResult:TranscriptionResult; AudioTarget:AudioTarget; AudioGrantRequest:AudioGrantRequest; AudioGrantReceipt:AudioGrantReceipt; AudioWithdrawal:AudioWithdrawal; AudioMeasurement: AudioMeasurement; Artifact: Artifact; Upload: Upload; Price: Price; QuoteRequest: QuoteRequest; Quote: Quote; Submission: Submission; Job: Job; JobPage: JobPage; JobLookup: JobLookup; Withdrawal: Withdrawal; InputBinding: InputBinding; Result: Result };
 const monetary = new Set(['price_per_minute', 'input_price', 'output_price', 'max_amount', 'reserved', 'charge']);
 export function decodeCompute<K extends keyof Values>(kind: K, value: unknown): Values[K] {
  if (!validators[kind](value)) throw new Error('INVALID_COMPUTE_RESPONSE');
