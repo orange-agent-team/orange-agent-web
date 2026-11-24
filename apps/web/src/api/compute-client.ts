@@ -1,6 +1,6 @@
 import { UserClient, ApiFailure } from './client';
 import type { UserSession } from './contracts';
-import { isArtifactError, decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
+import { isArtifactError, decodeCompute, pathId, sha256, MODEL_RESPONSE_MEDIA, TRANSCRIPTION_MEDIA, type InspectedImage, type AudioGrantRequest, type AudioGrantReceipt, type AudioPrice, type Artifact, type Upload, type QuoteRequest, type Submission, type Job } from './compute-contracts';
 /** Content denial is scoped to this result. It is not itself a revoked login. */
 export class ContentUnavailable extends Error {}
 const write = (session: UserSession, key: string) => { pathId(key); return { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token, 'Idempotency-Key': key }; };
@@ -9,6 +9,31 @@ const audioFormats: Readonly<Record<string,string>> = { 'audio/wav':'wav', 'audi
 function validatedVersion(value:string):string{
  if(!/^[1-9][0-9]{0,18}$/.test(value) || BigInt(value)>9223372036854775807n) throw new ApiFailure(0,'INVALID_JOB_REVISION');
  return value;
+}
+
+async function checkedBody(response:Response,artifact:Pick<Artifact,'size_bytes'|'sha256'>) {
+   if (!response.body) throw new Error('RESULT_BODY_MISSING');
+   const length = response.headers.get('Content-Length');
+   if (length !== null && length !== artifact.size_bytes) { await response.body.cancel(); throw new Error('RESULT_LENGTH_MISMATCH'); }
+   const reader = response.body.getReader(), chunks: Uint8Array[] = []; let size = 0;
+   try {
+    for (;;) { const read = await reader.read(); if (read.done) break; size += read.value.byteLength; if (size > Number(artifact.size_bytes)) throw new Error('RESULT_TOO_LARGE'); chunks.push(read.value); }
+   } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
+   if (size !== Number(artifact.size_bytes)) throw new Error('RESULT_LENGTH_MISMATCH');
+   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk,offset); offset += chunk.length; }
+   if (await sha256(bytes) !== artifact.sha256) throw new Error('RESULT_HASH_MISMATCH');
+   return bytes;
+}
+
+function storageOrigin(value:unknown):string|null {
+  if (typeof value!=='object' || value===null || !('version' in value) || value.version!==1 || !('origin' in value) || Object.keys(value).length!==2)
+    throw new Error('INVALID_DOWNLOAD_CONFIGURATION');
+  if (value.origin===null) return null;
+  if (typeof value.origin!=='string') throw new Error('INVALID_DOWNLOAD_CONFIGURATION');
+  const parsed=new URL(value.origin);
+  if (parsed.origin!==value.origin || !(parsed.protocol==='https:' || parsed.protocol==='http:' && ['127.0.0.1','[::1]'].includes(parsed.hostname)))
+    throw new Error('INVALID_DOWNLOAD_CONFIGURATION');
+  return parsed.origin;
 }
 
 export class ComputeClient extends UserClient {
@@ -115,6 +140,49 @@ export class ComputeClient extends UserClient {
     throw new ApiFailure(200, 'UNCONFIRMED_RESPONSE');
   }
   return measured;
+ }
+ async downloadImage(session: UserSession, upload: string, inspected: InspectedImage, external: AbortSignal) {
+  const end = new AbortController();
+  const cancel = () => end.abort();
+  if (external.aborted) cancel(); else external.addEventListener('abort',cancel,{once:true});
+  const timer = setTimeout(cancel,45000);
+  try {
+    const artifact = await this.uploadStatus(session,upload,end.signal);
+    if (artifact.state!=='available' || artifact.media_type!=='image/png' || artifact.artifact_id!==inspected.artifact_id ||
+        artifact.version_id!==inspected.version_id || artifact.sha256!==inspected.content.sha256 ||
+        artifact.size_bytes!==String(inspected.content.bytes) || inspected.content.bytes>(16<<20)) throw new ContentUnavailable();
+    const config = await this.fetcher('/artifact-download.json',{signal:end.signal, cache:'no-store',credentials:'same-origin',redirect:'error'});
+    if (!config.ok) throw new Error('DOWNLOAD_CONFIGURATION_UNAVAILABLE');
+    const origin=storageOrigin(await config.json());
+    let target=this.base(session)+'/uploads/'+pathId(upload)+'/content?'+new URLSearchParams({version_id:artifact.version_id});
+    if (origin!==null) {
+      const grant=decodeCompute('DownloadGrant',await this.call(this.base(session)+'/uploads/'+pathId(upload)+'/download-authorizations',{
+        method:'POST',headers:write(session,crypto.randomUUID()),body:JSON.stringify({version_id:artifact.version_id}),signal:end.signal
+      }));
+      const url=new URL(grant.url);
+      const seconds=url.searchParams.getAll('X-Amz-Expires');
+      const versions=url.searchParams.getAll('versionId');
+      if (grant.artifact_id!==artifact.artifact_id || grant.version_id!==artifact.version_id || grant.sha256!==artifact.sha256 ||
+          grant.size_bytes!==artifact.size_bytes || BigInt(grant.expires_at_unix)<=BigInt(Math.floor(Date.now()/1000)) ||
+          url.origin!==origin || url.username || url.password || url.hash || versions.length!==1 || !versions[0] || versions[0]==='null' ||
+          url.searchParams.get('X-Amz-Algorithm')!=='AWS4-HMAC-SHA256' || !/^[0-9a-f]{64}$/.test(url.searchParams.get('X-Amz-Signature') ?? '') ||
+          seconds.length!==1 || !/^[1-9][0-9]?$/.test(seconds[0]) || Number(seconds[0])>60) throw new Error('UNCONFIRMED_DOWNLOAD_GRANT');
+      target=grant.url;
+    }
+    const response=await this.fetcher(target,{signal:end.signal,cache:'no-store',redirect:'error',credentials:origin===null?'same-origin':'omit',referrerPolicy:'no-referrer'});
+    if (response.status!==200) {
+      await response.body?.cancel();
+      if(origin!==null || [403,410].includes(response.status)) throw new ContentUnavailable();
+      throw new ApiFailure(response.status,'RESULT_UNAVAILABLE');
+    }
+    const bytes=await checkedBody(response,artifact);
+    // A provider can finish an already signed transfer after a platform deletion or revocation.
+    const current=await this.inspectImage(session,upload,end.signal);
+    if (current.artifact_id!==inspected.artifact_id || current.version_id!==inspected.version_id ||
+        current.content.sha256!==inspected.content.sha256 || current.content.rgb_sha256!==inspected.content.rgb_sha256 || end.signal.aborted)
+      throw new ContentUnavailable();
+    return bytes;
+  } finally { clearTimeout(timer);external.removeEventListener('abort',cancel); }
  }
  async uploadStatus(session: UserSession, upload: string, signal?: AbortSignal) {
   return this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads/${pathId(upload)}`, { signal }), upload);
@@ -288,15 +356,7 @@ export class ComputeClient extends UserClient {
    const url = `${this.base(session)}/uploads/${pathId(artifact.upload_id)}/content?${new URLSearchParams({ version_id: artifact.version_id })}`;
    const response = await this.fetcher(url,{ signal: deadline.signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error', headers: { Accept: 'application/octet-stream' } });
    if (response.status !== 200 || !response.body) { await response.body?.cancel(); if ([403,410].includes(response.status)) throw new ContentUnavailable('CONTENT_UNAVAILABLE'); throw new ApiFailure(response.status,'RESULT_UNAVAILABLE'); }
-   const length = response.headers.get('Content-Length');
-   if (length !== null && length !== artifact.size_bytes) { await response.body.cancel(); throw new Error('RESULT_LENGTH_MISMATCH'); }
-   const reader = response.body.getReader(), chunks: Uint8Array[] = []; let size = 0;
-   try {
-    for (;;) { const read = await reader.read(); if (read.done) break; size += read.value.byteLength; if (size > Number(artifact.size_bytes)) throw new Error('RESULT_TOO_LARGE'); chunks.push(read.value); }
-   } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
-   if (size !== Number(artifact.size_bytes)) throw new Error('RESULT_LENGTH_MISMATCH');
-   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk,offset); offset += chunk.length; }
-   if (await sha256(bytes) !== artifact.sha256) throw new Error('RESULT_HASH_MISMATCH');
+   const bytes=await checkedBody(response,artifact);
    const result:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
    if(external?.aborted)throw new DOMException('aborted','AbortError');
    return result;

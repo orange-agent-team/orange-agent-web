@@ -35,10 +35,10 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
     };
   }, [clear]);
   useEffect(() => {
-    if (!result) return;
+    if (!result || pending) return;
     const timer = window.setTimeout(clear, 15000);
     return () => window.clearTimeout(timer);
-  }, [result, clear]);
+  }, [result, pending, clear]);
 
   async function inspect(event: FormEvent) {
     event.preventDefault();
@@ -56,6 +56,25 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
     } finally {
       if (active.current === current) { active.current = null; setPending(false); }
     }
+  }
+
+  async function download() {
+    if (!result || active.current) return;
+    const current=new AbortController();
+    active.current=current;setPending(true);setError('');
+    try {
+      const bytes=await api.downloadImage(session,upload.trim(),result,current.signal);
+      if (active.current!==current || document.hidden) return;
+      const url=URL.createObjectURL(new Blob([bytes],{type:'image/png'}));
+      const link=document.createElement('a');
+      link.href=url;link.download=result.artifact_id+'.png';
+      try {link.click();} finally {window.setTimeout(()=>URL.revokeObjectURL(url),1000);}
+    } catch(reason) {
+      if (active.current!==current) return;
+      setResult(undefined);
+      if (reason instanceof ApiFailure && reason.status===401) {invalidate();return;}
+      setError('图像下载未完成，请重新核对内容权限和版本。');
+    } finally {if(active.current===current) {active.current=null;setPending(false);}}
   }
 
   return <Card><details onToggle={event => { if (!event.currentTarget.open) clear(); }}>
@@ -76,5 +95,6 @@ export function ImageOutputInspection({ api, session, invalidate, sharingHref }:
       <dt>文件 SHA-256</dt><dd><code>{result.content.sha256}</code></dd>
       <dt>像素 SHA-256</dt><dd><code>{result.content.rgb_sha256}</code></dd>
     </dl>}
+    {result && <Button disabled={pending} onClick={()=>void download()}>下载已校验 PNG</Button>}
   </details></Card>;
 }
