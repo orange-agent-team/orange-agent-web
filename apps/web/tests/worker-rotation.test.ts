@@ -11,6 +11,12 @@ async function sample(){
 }
 const file=(value:unknown)=>new File([JSON.stringify(value)],'handoff.json',{type:'application/json'});
 describe('owner certificate rotation',()=>{
+  it('enables a fresh request only for the declared rotation-specific absence',async()=>{
+    const lookup=(code:string)=>new RotationClient(async()=>new Response(JSON.stringify({code,message:code,request_id:next,retry_class:'never'}),{status:404}));
+    expect(await lookup('ENROLLMENT_ROTATION_NOT_FOUND').inspect(owner,next,new AbortController().signal)).toBeNull();
+    await expect(lookup('ENROLLMENT_NOT_FOUND').inspect(owner,next,new AbortController().signal)).rejects.toThrow();
+    await expect(lookup('NOT_A_PLATFORM_CODE').inspect(owner,next,new AbortController().signal)).rejects.toThrow();
+  });
   it('rejects private fields, wrong owner and noncanonical signature; binds the exact predecessor and replacement',async()=>{
     const source=await sample();const input=await readRotationHandoff(file(source),owner);
     await expect(readRotationHandoff(file(source),'another-owner')).rejects.toThrow();
