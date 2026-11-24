@@ -69,8 +69,9 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const prices = useQuery({ queryKey: [scope, 'text-prices'], queryFn: ({ signal }) => api.prices(signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const budgets = useQuery({ queryKey: [scope, 'model-budgets'], enabled: !team, queryFn: ({ signal }) => api.budgets(session, undefined, signal), refetchInterval: 15000, refetchIntervalInBackground: false });
   const jobs = useQuery({ queryKey: [scope, 'jobs', cursor ?? 'first'], enabled: !team, queryFn: ({ signal }) => api.jobs(session, cursor, signal), refetchInterval: 5000, refetchIntervalInBackground: false });
-  const current = useQuery({ queryKey: [scope, 'job', selected], queryFn: ({ signal }) => api.jobSnapshot(session, selected!, signal), enabled: !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
-  const jobEvents=useJobEvents(session.session_id,api.owner(session),team?undefined:selected,[scope,'job',selected],[scope,'job-result',selected]);
+  const readSnapshot=(signal:AbortSignal)=>api.jobSnapshot(session, selected!, signal);
+  const jobEvents=useJobEvents(session.session_id,api.owner(session),team?undefined:selected,[scope,'job',selected],[scope,'job-result',selected],readSnapshot);
+  const current = useQuery({ queryKey:jobEvents.statusKey, queryFn: ({ signal }) => readSnapshot(signal), enabled:jobEvents.visible && !team && Boolean(selected), refetchInterval: 3000, refetchIntervalInBackground: false });
   const result = useQuery({ queryKey: jobEvents.resultKey, enabled: jobEvents.visible && !team && current.data?.job.execution_state === 'succeeded' && !current.error,
     queryFn: async ({ signal }) => api.resultDocument(session, await api.result(session, selected!, signal), signal), refetchInterval: 10000, refetchIntervalInBackground: false });
   const offer = !prices.error ? prices.data?.find(row => row.price_version === price) : undefined;
@@ -144,7 +145,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
       if(!current.data || current.data.job.job_id!==job) return;
       const value = await api.cancelObserved(session,job,current.data.revision);
       if (!alive.current) return;
-      client.setQueryData([scope, 'job', job], {job:value,revision:undefined});
+      client.setQueryData(jobEvents.statusKey, {job:value,revision:undefined});
       void current.refetch();
       void client.invalidateQueries({ queryKey: [scope, 'jobs'] }); refreshBudget();
     } catch (error) {

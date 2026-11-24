@@ -152,3 +152,54 @@ test('busy input keeps its withdrawal identity and deletes only on an explicit r
   expect(state.deletes).toBe(1);
   expect(state.submits).toBe(0);
 });
+
+test('reconnecting retires a previously cancellable Job until the new projection arrives',async({page})=>{
+ const state=await fixture(page,{running:true});
+ const sockets:import('@playwright/test').WebSocketRoute[]=[];
+ const acknowledgments:{connection_generation:string}[]=[];
+ await page.routeWebSocket('**/events/ws*',socket=>{
+  socket.onMessage(message=>acknowledgments.push(JSON.parse(String(message))));
+  sockets.push(socket);
+ });
+ await quote(page);
+ await page.getByRole('button',{name:'确认并提交原请求'}).click();
+ const cancel=page.getByRole('button',{name:'取消任务',exact:true});
+ await expect(cancel).toBeVisible();
+ await expect.poll(()=>sockets.length).toBe(1);
+ const first='3abda1a9-620a-4493-af34-100000000001',second='3abda1a9-620a-4493-af34-100000000002';
+ const cursor={stream_id:'job-stream',after:'1'};
+ sockets[0].send(JSON.stringify({protocol_version:1,connection_generation:first,history:{kind:'snapshot',cursor,job_version:'4',job:state.job}}));
+ await expect.poll(()=>acknowledgments.some(a=>a.connection_generation===first)).toBe(true);
+ await expect(cancel).toBeVisible();
+ let release=()=>{};
+ const paused=new Promise<void>(done=>{release=done;});
+ const old=structuredClone(state.job);
+ let hold=true,delayedReads=0,lateReplies=0;
+ await page.route('**/jobs/job-fixture',async route=>{
+  if(!hold) return route.fallback();
+  delayedReads++;
+  await paused;
+  await route.fulfill({json:old,headers:{'Cache-Control':'no-store','x-orange-job-version':'4'}});
+  lateReplies++;
+ });
+ try{
+  sockets[0].close({code:1000,reason:'test-owned disconnect'});
+  await expect(cancel).toHaveCount(0);
+  await expect.poll(()=>sockets.length).toBe(2);
+  expect(new URL(sockets[1].url()).searchParams.get('after')).toBe('1');
+  await expect.poll(()=>delayedReads).toBeGreaterThan(0);
+  hold=false;
+  state.job!.execution_state='cancelled';state.job!.settlement_state='settled';state.job!.charge='0';
+  sockets[1].send(JSON.stringify({protocol_version:1,connection_generation:second,history:{
+   kind:'reset',job:state.job,job_version:'5',cursor:{stream_id:'replacement-stream',after:'2'}
+  }}));
+  await expect.poll(()=>acknowledgments.some(a=>a.connection_generation===second)).toBe(true);
+  await expect(page.getByText(/已记费用 0 积分/)).toBeVisible();
+  release();
+  await expect.poll(()=>lateReplies).toBe(delayedReads);
+  await expect(cancel).toHaveCount(0);
+  await expect(page.getByText(/已记费用 0 积分/)).toBeVisible();
+  expect(state.cancels).toBe(0);
+  expect(state.submits).toBe(1);
+ } finally {release();}
+});

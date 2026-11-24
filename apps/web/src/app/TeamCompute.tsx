@@ -39,8 +39,9 @@ function OwnedJobs({session,org}:{session:UserSession;org:string}){
   const allowed=member.isSuccess&&['owner','admin','member'].includes(member.data.role);
   const key=['team-jobs',session.session_id,org];
   const jobs=useQuery({queryKey:[...key,'list',after],enabled:allowed,queryFn:({signal})=>api.jobs(session,after,signal),refetchInterval:5000,retry:false});
-  const job=useQuery({queryKey:[...key,'job',selected],enabled:allowed&&!!selected,queryFn:({signal})=>api.jobSnapshot(session,selected!,signal),refetchInterval:5000,retry:false});
-  const jobEvents=useJobEvents(session.session_id,org,allowed?(selected??undefined):undefined,[...key,'job',selected],[...key,'document',selected]);
+  const readSnapshot=(signal:AbortSignal)=>api.jobSnapshot(session,selected!,signal);
+  const jobEvents=useJobEvents(session.session_id,org,allowed?(selected??undefined):undefined,[...key,'job',selected],[...key,'document',selected],readSnapshot);
+  const job=useQuery({queryKey:jobEvents.statusKey,queryFn:({signal})=>readSnapshot(signal),enabled:jobEvents.visible&&allowed&&!!selected,refetchInterval:5000,retry:false});
   const result=useQuery({queryKey:jobEvents.resultKey,enabled:allowed&&jobEvents.visible&&!!selected&&job.isSuccess&&job.data.job.execution_state==='succeeded',
     queryFn:async({signal})=>api.resultDocument(session,await api.result(session,selected!,signal),signal),refetchInterval:5000,refetchIntervalInBackground:false,retry:false});
   async function cancel(){if(!selected||busy||job.data?.job.job_id!==selected)return;setBusy(true);setError('');try{await api.cancelObserved(session,selected,job.data.revision);await client.invalidateQueries({queryKey:key});}

@@ -24,6 +24,13 @@ try{
  const page=await context.newPage();
  page.setDefaultTimeout(18000);
  const path='/api/v1/owners/'+encodeURIComponent(f.owner)+'/jobs/'+encodeURIComponent(f.job);
+ // Retain only the native socket created by this owned Chrome test so we can interrupt it.
+ await page.addInitScript(({path})=>{
+  const Native=window.WebSocket;
+  window.WebSocket=class extends Native{
+   constructor(...args){super(...args);if(new URL(this.url).pathname===path+'/events/ws')window.orangeTestJobSocket=this;}
+  };
+ },{path});
  const frames=[];
  const acknowledgments=[];
  page.on('websocket',ws=>{
@@ -39,6 +46,25 @@ try{
  const snapshot=frames.find(frame=>frame.history.kind==='snapshot'&&frame.history.job.job_id===f.job);
  if(!snapshot||!acknowledgments.some(a=>a.kind==='ack'&&a.connection_generation===snapshot.connection_generation))throw Error('No native browser acknowledgment for this Job snapshot');
  if(!observed||!/^\d+$/.test(observed))throw Error('Missing observed version');
+ const action=page.getByRole('button',{name:f.team?'取消团队任务':'取消任务',exact:true});
+ await expect(action).toBeVisible();
+ let allowRead;
+ const delayed=new Promise(ok=>{allowRead=ok;});
+ let intercepted=0;
+ const pause=async route=>{intercepted++;await delayed;await route.continue();};
+ await page.route(f.origin+path,pause);
+ let resumed;
+ try{
+  await page.evaluate(()=>{const ws=window.orangeTestJobSocket;if(!ws||ws.readyState!==WebSocket.OPEN)throw Error('No live native socket');ws.close(1000,'owned reconnect exercise');});
+  await expect(action).toHaveCount(0);
+  await expect.poll(()=>intercepted,{timeout:5000}).toBeGreaterThan(0);
+  await expect.poll(()=>frames.some(frame=>frame.connection_generation!==snapshot.connection_generation&&frame.history.kind==='page'),{timeout:8000}).toBe(true);
+  resumed=frames.find(frame=>frame.connection_generation!==snapshot.connection_generation&&frame.history.kind==='page');
+  if(acknowledgments.some(a=>a.connection_generation===resumed.connection_generation))throw Error('Acknowledged the new generation without a fresh status read');
+ }finally{allowRead();}
+ await expect.poll(()=>acknowledgments.some(a=>a.connection_generation===resumed.connection_generation),{timeout:8000}).toBe(true);
+ await page.unroute(f.origin+path,pause);
+ await expect(action).toBeVisible();
  let posts=0;
  let competingStatus;
  let sent;
@@ -64,7 +90,7 @@ try{
  if(posts!==1)throw Error('Portal resent a cancellation without another operator action');
  await expect.poll(()=>frames.some(frame=>frame.history.kind==='page'&&frame.history.events.some(e=>e.event_type==='job.cancelled')),{timeout:12000}).toBe(true);
  if(posts!==1)throw Error('Event replay caused a second business command');
- console.log(JSON.stringify({event_snapshot:true,durable_cancellation_event:true,acknowledgments:acknowledgments.length,team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
+ console.log(JSON.stringify({event_snapshot:true,reconnect_hid_cancel:true,fresh_revision_before_ack:true,durable_cancellation_event:true,acknowledgments:acknowledgments.length,team:f.team,observed,sent,status:response.status(),browser_posts:posts,competing_status:competingStatus??null}));
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.httpServer.close(resolve));
