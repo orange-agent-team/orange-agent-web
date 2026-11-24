@@ -611,6 +611,156 @@
         "retry_class"
       ],
       "additionalProperties": false
+    },
+    "ResourceSharingChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "access": {
+          "anyOf": [
+            {
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_acl_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        }
+      },
+      "required": [
+        "user_id",
+        "access",
+        "expected_acl_version"
+      ]
+    },
+    "ResourceSharingReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "resource_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "creator_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "acl_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "access": {
+          "anyOf": [
+            {
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "organization_id",
+        "resource_id",
+        "creator_id",
+        "acl_version",
+        "user_id",
+        "access"
+      ]
+    },
+    "ResourceSharingList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "resource_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "creator_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "acl_version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "data": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "user_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              "access": {
+                "enum": [
+                  "read",
+                  "write"
+                ]
+              }
+            },
+            "required": [
+              "user_id",
+              "access"
+            ]
+          }
+        }
+      },
+      "required": [
+        "organization_id",
+        "resource_id",
+        "creator_id",
+        "acl_version",
+        "data"
+      ]
     }
   }
 }

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button, Card, Input } from 'antd';
+import { Link } from 'react-router';
 import { ApiFailure } from '../api/client';
 import { ComputeClient } from '../api/compute-client';
 import type { InspectedImage } from '../api/compute-contracts';
 import type { UserSession } from '../api/contracts';
 
-export function ImageOutputInspection({ api, session, invalidate }: {
-  api: ComputeClient; session: UserSession; invalidate: () => void;
+export function ImageOutputInspection({ api, session, invalidate, sharingHref }: {
+  api: ComputeClient; session: UserSession; invalidate: () => void; sharingHref?: (resource:string) => string;
 }) {
   const [upload, setUpload] = useState('');
   const [result, setResult] = useState<InspectedImage>();
@@ -69,6 +70,7 @@ export function ImageOutputInspection({ api, session, invalidate }: {
     </form>
     {error && <Alert type="error" title={error} />}
     {result && <dl aria-label="图像校验结果">
+      <dt>资源 ID</dt><dd>{result.artifact_id} {sharingHref && <Link to={sharingHref(result.artifact_id)}>管理共享权限</Link>}</dd>
       <dt>版本</dt><dd>{result.version_id}</dd>
       <dt>图像</dt><dd>{result.content.width} × {result.content.height} RGB PNG · {result.content.bytes} 字节</dd>
       <dt>文件 SHA-256</dt><dd><code>{result.content.sha256}</code></dd>

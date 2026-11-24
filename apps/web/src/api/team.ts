@@ -27,7 +27,32 @@ export function checkIntent(v:Intent,org:string){
   if(v.op==='invite'&&v.body.invitation_id!==v.key||v.op==='allocate'&&v.body.budget_id!==v.key||['revoke','accept','decline'].includes(v.op)&&v.target!==v.key)throw Error('TEAM_KEY_MISMATCH');
 }
 function safeBudget(v:Budget){return BigInt(v.spent)+BigInt(v.reserved)<=BigInt(v.limit)&&BigInt(v.limit)<=9223372036854775807n;}
+export type SharedAccess = 'read' | 'write';
+export interface SharingState {
+  organization_id: string; resource_id: string; creator_id: string; acl_version: string;
+  data: {user_id:string; access:SharedAccess}[];
+}
+export interface SharingChange {user_id:string; access:SharedAccess|null; expected_acl_version:string}
+const sharingList = validate<SharingState>('ResourceSharingList');
+const sharingResponse = validate<Omit<SharingState,'data'> & Pick<SharingChange,'user_id'|'access'>>('ResourceSharingReceipt');
+const sharingRequest = validate<SharingChange>('ResourceSharingChange');
 export class TeamClient extends UserClient{
+  async sharing(session:UserSession,org:string,resource:string,signal:AbortSignal):Promise<SharingState> {
+    const value=await this.call(root(org)+'/resources/'+pathId(resource)+'/sharing',{signal});
+    if (!sharingList(value) || value.organization_id!==org || value.resource_id!==resource || value.creator_id!==session.user_id ||
+        new Set(value.data.map(entry=>entry.user_id)).size!==value.data.length) throw Error('UNCONFIRMED_SHARING');
+    return value;
+  }
+  async changeSharing(session:UserSession,org:string,resource:string,key:string,request:SharingChange) {
+    if (!sharingRequest(request)) throw Error('INVALID_SHARING');
+    const value=await this.call(root(org)+'/resources/'+pathId(resource)+'/sharing',{
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':session.csrf_token,'Idempotency-Key':pathId(key)},body:JSON.stringify(request)
+    });
+    if (!sharingResponse(value) || value.resource_id!==resource || value.organization_id!==org || value.creator_id!==session.user_id ||
+        value.user_id!==request.user_id || value.access!==request.access || BigInt(value.acl_version)!==BigInt(request.expected_acl_version)+1n)
+      throw Error('UNCONFIRMED_SHARING');
+    return value;
+  }
   async organization(s:UserSession,org:string,signal:AbortSignal){
     const v=decode('UserOrganization',await this.call(root(org),{signal}));
     if(v.member_user_id!==s.user_id||v.organization_id!==org)throw Error('ORGANIZATION_MISMATCH');return v;

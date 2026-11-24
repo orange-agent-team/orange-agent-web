@@ -77,6 +77,7 @@ function Team({org,session}:{org:string;session:UserSession}){
   const editable=roster?.data.filter(m=>me.role==='owner'||!['owner','admin'].includes(m.role))??[];
   return <><p><Link to="/organizations">我的组织</Link></p><h1>{me.name}</h1><p>{labels[me.role]} · 组织编号 <Typography.Text copyable>{org}</Typography.Text></p>
     {['owner','admin','member'].includes(me.role)&&<p><Link to={'/organizations/'+encodeURIComponent(org)+'/tasks'}>我在这个团队的任务</Link></p>}
+    {me.role!=='billing' && <p><Link to={'/organizations/'+encodeURIComponent(org)+'/images'}>校验团队图像</Link></p>}
     {managed&&<p><Link to={'/organizations/'+encodeURIComponent(org)+'/devices'}>管理团队设备注册</Link></p>}
     {w.feedback}
     {managed&&<Card title="团队成员与邀请">{roster?<><ul>{roster.data.map(m=><li key={m.user_id}><code>{m.user_id}</code> · {labels[m.role]}</li>)}</ul>
