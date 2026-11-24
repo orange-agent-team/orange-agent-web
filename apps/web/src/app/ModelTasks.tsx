@@ -1,3 +1,4 @@
+import { ImageOutputInspection } from './ImageOutputInspection';
 import {useJobEvents} from './useJobEvents';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -177,6 +178,7 @@ export default function ModelTasks({ session: identity, invalidate, teamBudget }
   const verifiedDocument = jobEvents.visible && !result.error && !result.isFetching && visibleJob?.execution_state === 'succeeded' ? result.data : undefined;
   return <>
     <div className="page-heading"><div><h1>{team ? '团队文本任务' : '模型任务'}</h1><p>使用可用算力执行文本推理，提交前核对最大预留。</p></div><div><Link to={team ? '/organizations/'+pathId(team)+'/tasks' : '/tasks/audio'}>{team ? '我的团队任务' : '音频预检'}</Link> <Button onClick={refresh}>刷新任务</Button></div></div>
+    <ImageOutputInspection key={session.session_id+":"+api.owner(session)} api={api} session={session} invalidate={invalidate} />
     {recoveryError && <Alert type="error" showIcon title="本地恢复记录无法核对" description="创建入口已关闭，你仍可在任务列表中查询现有任务。" />}
     {Boolean(failure) && <Alert type="warning" showIcon title="操作待核对" description={failureText(failure)} />}
     <div className={team ? undefined : "model-layout"}><section><Card><h2>{intent ? '原任务请求' : '创建文本任务'}</h2>

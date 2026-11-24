@@ -1822,6 +1822,81 @@
         },
         "description": "Requires current user, owner and object permission. Declared deadlines are UTC Unix seconds. Active input references suspend the timer. The deadline does not certify physical purge or backup removal."
       }
+    },
+    "/api/v1/owners/{owner}/uploads/{upload}/image-output-inspection": {
+      "get": {
+        "operationId": "inspectImageOutputVersion",
+        "security": [
+          {
+            "UserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Measured immutable file and decoded RGB pixels",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectedImage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Current authorized result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Inspect immutable fixed-template PNG bytes under the current content grant. No execution, job completion, billing or ledger effects."
+      }
     }
   },
   "components": {
@@ -3573,6 +3648,65 @@
             }
           }
         ]
+      },
+      "InspectedImage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact_id",
+          "version_id",
+          "content"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "content": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "width",
+              "height",
+              "media_type",
+              "bytes",
+              "sha256",
+              "rgb_sha256"
+            ],
+            "properties": {
+              "width": {
+                "const": 1024
+              },
+              "height": {
+                "const": 1024
+              },
+              "media_type": {
+                "const": "image/png"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16777216
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "rgb_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
       }
     }
   }

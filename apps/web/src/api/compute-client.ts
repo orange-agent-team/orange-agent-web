@@ -103,6 +103,19 @@ export class ComputeClient extends UserClient {
   const artifact=this.ownedArtifact(session,await this.call(`${this.base(session)}/uploads/${pathId(upload)}`,{method:'DELETE',headers:write(session,upload)}),upload);
   if(artifact.state!=='deleted')throw new ApiFailure(200,'UNCONFIRMED_RESPONSE');return artifact;
  }
+ async inspectImage(session: UserSession, upload: string, signal?: AbortSignal) {
+  const artifact = await this.uploadStatus(session, upload, signal);
+  if (artifact.state !== 'available' || artifact.media_type !== 'image/png') throw new ContentUnavailable();
+  const query = new URLSearchParams({version_id:artifact.version_id});
+  const measured = decodeCompute('InspectedImage', await this.call(
+    this.base(session)+'/uploads/'+pathId(upload)+'/image-output-inspection?'+query, {signal}
+  ));
+  if (measured.artifact_id !== artifact.artifact_id || measured.version_id !== artifact.version_id ||
+      measured.content.sha256 !== artifact.sha256 || String(measured.content.bytes) !== artifact.size_bytes) {
+    throw new ApiFailure(200, 'UNCONFIRMED_RESPONSE');
+  }
+  return measured;
+ }
  async uploadStatus(session: UserSession, upload: string, signal?: AbortSignal) {
   return this.ownedArtifact(session, await this.call(`${this.base(session)}/uploads/${pathId(upload)}`, { signal }), upload);
  }
