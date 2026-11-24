@@ -27,7 +27,10 @@ const roles: Record<TeamRole, string> = { owner: '所有者', admin: '管理员'
 export default function Portal({ session, invalidate, logout }: { session: UserSession; invalidate: () => void; logout: () => void }) {
   const invalidateRef = useRef(invalidate); invalidateRef.current = invalidate;
   const client = useMemo(() => new QueryClient({
-    queryCache: new QueryCache({ onError: failure => { if (failure instanceof ApiFailure && [401, 403].includes(failure.status)) invalidateRef.current(); } }),
+    queryCache: new QueryCache({ onError: (failure, query) => {
+      if (failure instanceof ApiFailure && (failure.status === 401 ||
+          (failure.status === 403 && query.meta?.accessScope !== 'resource'))) invalidateRef.current();
+    } }),
     defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 }, mutations: { retry: false } },
   }), []);
   useEffect(() => () => { void client.cancelQueries(); client.clear(); }, [client]);

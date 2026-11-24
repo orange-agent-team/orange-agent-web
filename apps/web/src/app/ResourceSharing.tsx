@@ -24,7 +24,7 @@ function SharingForm({session,invalidate,org,resource}:Props & {org:string;resou
   const [pending,setPending]=useState(false);
   const [uncertain,setUncertain]=useState<Intent>();
   const [error,setError]=useState('');
-  const query=useQuery({queryKey:['resource-sharing',session.session_id,org,resource],
+  const query=useQuery({queryKey:['resource-sharing',session.session_id,org,resource],meta:{accessScope:'resource'},
     queryFn:({signal})=>api.sharing(session,org,resource,signal),retry:false,refetchInterval:5000});
   useEffect(()=>{
     if(query.error instanceof ApiFailure && query.error.status===401) invalidate();

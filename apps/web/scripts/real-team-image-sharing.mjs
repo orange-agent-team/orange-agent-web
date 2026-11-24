@@ -70,6 +70,9 @@ try {
   await expect(reader.getByLabel('图像校验结果')).toHaveCount(0);
   await reader.goto(f.origin+'/organizations/'+f.team+'/resources/'+f.resource+'/sharing');
   await expect(reader.getByText('当前身份无法管理此资源的共享权限')).toBeVisible();
+  await expect(reader.getByRole('button',{name:'保存权限'})).toHaveCount(0);
+  const who=await reader.request.get(f.origin+'/api/v1/session');
+  if(who.status()!==200||(await who.json()).user_id!==f.viewer.user) throw Error('A scoped denial invalidated the unrelated user identity');
   if(financial.length)throw Error('Content navigation initiated a financial operation');
   console.log(JSON.stringify({real_chrome:true,team_viewer_without_budget:true,billing_denied:true,creator_revoke:true,
     lost_response_exact_retry:true,revoked_reader_denied:true,financial_writes:0}));

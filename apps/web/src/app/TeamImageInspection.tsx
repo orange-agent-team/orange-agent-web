@@ -13,7 +13,7 @@ export default function TeamImageInspection({session, invalidate}: {session: Use
   const valid = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(org);
   const teams = useMemo(() => new TeamClient(), []);
   const api = useMemo(() => valid ? new ComputeClient(undefined, org) : undefined, [org, valid]);
-  const membership = useQuery({queryKey:['team',session.session_id,org], enabled:valid, retry:false,
+  const membership = useQuery({queryKey:['team-image-membership',session.session_id,org], meta:{accessScope:'resource'}, enabled:valid, retry:false,
     queryFn:({signal}) => teams.organization(session, org, signal), refetchInterval:5000});
   if (valid && membership.isPending) return <Spin />;
   if (!api || !membership.isSuccess || membership.data.organization_id !== org || membership.data.role === 'billing') {
