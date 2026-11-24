@@ -30,3 +30,5 @@
 客户端采用固定提交的 CSR JSON Schema、用户错误类型和设备注册 OpenAPI。仅明确的 ENROLLMENT_NOT_FOUND 响应允许发起新授权。组件按当前会话、所有者和请求号隔离状态。会话存储仅保存请求编号。公开交接文件与服务端核对时始终绑定同一公钥摘要和 CSR 摘要。[接口快照](worker-enrollment.openapi.json) · [CSR 格式](worker-certificate-request.schema.json) · [版本与摘要](snapshot.json)
 
 托管 Agent 的仓库清单模型工具要求本次运行选中外部仓库访问。网页按当前登录和服务端登记发现 GitHub、GitLab 的工具定义，另行核对调用内容、数据源和实际仓库授权。恢复草稿时重新检查外部访问选择，读取或执行的响应须与原提供方、工具和执行摘要一致。[托管 Agent 契约](cloud-agent.openapi.json)
+
+证书轮换使用 `worker-certificate-rotations` 接口。网页校验交接格式、归属、新 CSR 摘要和规范化意图摘要，服务端验证原设备签名。授权后以及响应丢失时，网页用同一编号读取平台记录，并核对原节点、原凭据和新公钥。浏览器只保存请求编号。已签发的轮换保留原节点；界面显示服务端确认的兑换状态及原凭据的最迟重叠截止时间。

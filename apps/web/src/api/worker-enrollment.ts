@@ -25,6 +25,9 @@ const validView = ajv.compile<EnrollmentView>(contract.components.schemas.Enroll
 export async function readEnrollmentHandoff(file: File): Promise<EnrollmentHandoff> {
   if (file.size > 8192 || file.size === 0) throw Error('INVALID_HANDOFF');
   const v: unknown = JSON.parse(await file.text());
+  return validateEnrollmentHandoff(v);
+}
+export async function validateEnrollmentHandoff(v:unknown):Promise<EnrollmentHandoff> {
   if (!validHandoff(v)) throw Error('INVALID_HANDOFF');
   const {request:r,exchange_token_sha256:commitment}=v;
   if (!validRequestId(r.request_id) || r.spki_sha256.length!==64 || r.csr_sha256.length!==64 ||

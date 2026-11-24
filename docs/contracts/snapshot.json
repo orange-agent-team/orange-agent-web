@@ -1,7 +1,7 @@
 {
   "version": "0.27.0",
   "source_repository": "orange-agent-server",
-  "source_commit": "db7bdcd4065c6d4e505a351cf531eadb8e47d11d",
+  "source_commit": "7e473d80870aca8d86b0812e0cb95f08b7853042",
   "files": {
     "user.schema.json": {
       "source": "contracts/json-schema/user.schema.json",
@@ -109,7 +109,7 @@
     },
     "worker-enrollment.openapi.json": {
       "source": "contracts/openapi/worker-enrollment.v1.json",
-      "sha256": "60136934584c7f665779a4a4efc897a811efcdbf5f14eeeddd3a1d72cab5670c"
+      "sha256": "ae3acee0dabe5fc4cff7ae83cdd11cb56d26f5c13cff127af3d6cce462fa6204"
     },
     "worker-certificate-request.schema.json": {
       "source": "contracts/json-schema/worker-certificate-request.v1.json",

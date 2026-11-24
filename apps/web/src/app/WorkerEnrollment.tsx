@@ -1,3 +1,4 @@
+import WorkerRotation from './WorkerRotation';
 import {useEffect,useRef,useState} from 'react';
 import {Alert,Button,Card,Input,Space,Spin,Typography} from 'antd';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
@@ -92,6 +93,7 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
         <p>请与设备端显示的公钥摘要核对。授权自首次提交起有效 10 分钟。</p>
         <Button type="primary" disabled={busy||lookup!==id||query.isFetching||!query.isSuccess||result!==null||mismatch} onClick={()=>void mutate('authorize')}>确认授权设备</Button></>}
     </Card>
+    <WorkerRotation session={session} owner={owner}/>
     <Card><h2>查询与撤销</h2><Space wrap><label>请求编号 <Input aria-label="查询请求编号" value={lookup} maxLength={36} disabled={busy}
       onChange={e=>{setLookup(e.target.value);setConfirm(false);}}/></label><Button disabled={busy||!validRequestId(lookup)} onClick={inspect}>读取授权状态</Button></Space>
       {query.isFetching&&id&&<p>正在读取授权状态</p>}
@@ -101,7 +103,7 @@ function Enrollment({session,owner,ownerLabel,back}:{session:UserSession;owner:s
       {result&&!mismatch&&<><p>{ownerLabel} · 请求 <code>{result.request_id}</code></p><p>设备公钥 <Typography.Text copyable>{result.spki_sha256}</Typography.Text></p><p>状态 <strong data-testid="enrollment-state">{labels[result.state]}</strong></p><p>授权截止 <time>{new Date(Number(result.expires_unix)*1000).toLocaleString()}</time></p>
         {result.state==='certificate_prepared'&&<p>可在原设备上运行 <code>orange-worker redeem-enrollment</code> 安装证书。</p>}
         {result.state==='redeemed'&&<p>设备已取得客户端证书。连接和接单状态由 Worker 网关记录。</p>}
-        {result.state!=='revoked'&&<>{confirm?<><p>撤销会停用本次授权已经兑换的设备证书。</p>
+        {result.state!=='revoked'&&<>{confirm?<><p>撤销会停用本次授权及其后续轮换已经兑换的设备证书。</p>
           <Space><Button danger disabled={busy} onClick={()=>void mutate('revoke')}>确认撤销设备授权</Button><Button disabled={busy} onClick={()=>setConfirm(false)}>保留授权</Button></Space></>:
           <Button danger disabled={busy||lookup!==id||query.isFetching} onClick={()=>setConfirm(true)}>撤销设备授权</Button>}</>}
       </>}

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Worker enrollment authorization",
-    "version": "0.2.1",
-    "description": "Manager authorizes a public Worker key. The dedicated development issuer prepares a short client certificate. The original independent token redeems one node identity."
+    "version": "0.3.0",
+    "description": "Owner-managed enrollment and device-key rotation. Replacement authorization binds a fresh CSR and token commitment to a currently active device, its old key and the same owner and node."
   },
   "security": [
     {
@@ -394,6 +394,197 @@
           }
         }
       }
+    },
+    "/api/v1/owners/{owner}/worker-certificate-rotations/{request}": {
+      "parameters": [
+        {
+          "name": "owner",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "request",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Authorize one old-key-signed replacement of the current Worker certificate",
+        "operationId": "authorizeWorkerCertificateRotation",
+        "responses": {
+          "422": {
+            "description": "Invalid request, CSR or idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session unavailable or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner permission, origin or CSRF rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown owner-scoped request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request or token commitment conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Hourly owner limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current enrollment authorization metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentView"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotationHandoff"
+              }
+            }
+          }
+        },
+        "description": "Independent manager permission, CSRF, origin and request idempotency key are required. Preparing the replacement does not activate it. Only one successor can redeem a predecessor. The original node is preserved. The old leaf expires at the earlier of its current deadline and two minutes after activation. A successful Hello with the successor fences the old leaf immediately. Use the original enrollment status and withdrawal routes for the new request ID."
+      },
+      "get": {
+        "summary": "Read the stored rotation identity and authoritative activation receipt",
+        "operationId": "getWorkerCertificateRotation",
+        "responses": {
+          "422": {
+            "description": "Invalid request, CSR or idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Session unavailable or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Owner permission, origin or CSRF rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown owner-scoped request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../json-schema/user.schema.json#/$defs/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current enrollment authorization metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotationView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -506,6 +697,133 @@
           "certificate_pem": {
             "type": "string",
             "maxLength": 16384
+          }
+        }
+      },
+      "RotationHandoff": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "intent",
+          "previous_key_signature"
+        ],
+        "properties": {
+          "intent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "version",
+              "owner_id",
+              "node_id",
+              "previous_request_id",
+              "previous_certificate_sha256",
+              "previous_issuer_sha256",
+              "replacement"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer",
+                "const": 1
+              },
+              "owner_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "node_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "previous_request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "previous_certificate_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "previous_issuer_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "replacement": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "request",
+                  "exchange_token_sha256"
+                ],
+                "properties": {
+                  "request": {
+                    "$ref": "../json-schema/worker-certificate-request.v1.json"
+                  },
+                  "exchange_token_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          },
+          "previous_key_signature": {
+            "type": "string",
+            "minLength": 86,
+            "maxLength": 86,
+            "pattern": "^[A-Za-z0-9_-]{86}$",
+            "description": "Unpadded base64url signature by the installed Ed25519 key over the lowercase ASCII request digest for worker-certificate-rotation.v1."
+          }
+        }
+      },
+      "RotationView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enrollment",
+          "node_id",
+          "previous_request_id",
+          "previous_certificate_sha256",
+          "intent_sha256",
+          "predecessor_eligible",
+          "activated_unix",
+          "overlap_until_unix"
+        ],
+        "properties": {
+          "enrollment": {
+            "$ref": "#/components/schemas/EnrollmentView"
+          },
+          "node_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previous_request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previous_certificate_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "intent_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "predecessor_eligible": {
+            "type": "boolean"
+          },
+          "activated_unix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(0|[1-9][0-9]{0,12})$"
+          },
+          "overlap_until_unix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(0|[1-9][0-9]{0,12})$"
           }
         }
       }
